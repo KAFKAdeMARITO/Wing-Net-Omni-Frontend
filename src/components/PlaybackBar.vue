@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { inject, computed } from 'vue'
+import { inject, computed, onMounted, onBeforeUnmount } from 'vue'
 
 const engine = inject<any>('engine')
 const currentTick = computed(() => engine?.currentTick?.value ?? 0)
@@ -21,7 +21,49 @@ function setSpeed(s: number) {
   engine?.setSpeed(s)
 }
 
+function stepForward() {
+  engine?.pause()
+  engine?.seek(Math.min(currentTick.value + 1, totalTicks.value - 1))
+}
+
+function stepBackward() {
+  engine?.pause()
+  engine?.seek(Math.max(currentTick.value - 1, 0))
+}
+
 const speeds = [0.5, 1, 2, 4]
+
+// Keyboard shortcuts
+function onKeydown(e: KeyboardEvent) {
+  // Don't capture when typing in inputs
+  if ((e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'TEXTAREA') return
+  switch (e.code) {
+    case 'Space':
+      e.preventDefault()
+      togglePlay()
+      break
+    case 'ArrowRight':
+      e.preventDefault()
+      stepForward()
+      break
+    case 'ArrowLeft':
+      e.preventDefault()
+      stepBackward()
+      break
+    case 'Digit1': setSpeed(0.5); break
+    case 'Digit2': setSpeed(1); break
+    case 'Digit3': setSpeed(2); break
+    case 'Digit4': setSpeed(4); break
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+})
 </script>
 
 <template>
@@ -29,10 +71,14 @@ const speeds = [0.5, 1, 2, 4]
     <!-- Top accent glow line -->
     <div class="bar-accent"></div>
 
-    <button class="pb-btn play-btn" :class="{ playing: isPlaying }" @click="togglePlay">
+    <button class="pb-btn step-btn" @click="stepBackward" title="上一帧 (←)">⏮</button>
+
+    <button class="pb-btn play-btn" :class="{ playing: isPlaying }" @click="togglePlay" title="播放/暂停 (Space)">
       <span v-if="isPlaying">⏸</span>
       <span v-else>▶</span>
     </button>
+
+    <button class="pb-btn step-btn" @click="stepForward" title="下一帧 (→)">⏭</button>
 
     <div class="pb-progress">
       <div class="pb-track">
@@ -64,6 +110,8 @@ const speeds = [0.5, 1, 2, 4]
         @click="setSpeed(s)"
       >{{ s }}x</button>
     </div>
+
+    <div class="kb-hint">Space ▶⏸ │ ←→ 帧 │ 1-4 倍速</div>
   </div>
 </template>
 
@@ -113,6 +161,18 @@ const speeds = [0.5, 1, 2, 4]
 /* Breathing glow when playing */
 .pb-btn.playing {
   animation: breathe-glow 2s ease-in-out infinite;
+}
+
+.step-btn {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+  border: none;
+  opacity: 0.6;
+}
+
+.step-btn:hover {
+  opacity: 1;
 }
 
 .pb-progress {
@@ -221,5 +281,14 @@ const speeds = [0.5, 1, 2, 4]
   color: var(--cyan);
   background: var(--cyan-dim);
   border-color: var(--cyan);
+}
+
+.kb-hint {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  opacity: 0.4;
+  white-space: nowrap;
+  letter-spacing: 0.5px;
 }
 </style>

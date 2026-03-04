@@ -6,6 +6,15 @@ const frame = computed(() => engine?.currentFrame?.value)
 const connectivity = computed(() => frame.value ? Math.round(frame.value.topology.connectivity * 100) : 0)
 const conflicts = computed(() => frame.value?.conflicts || 0)
 
+// Dynamic health color for status line
+const healthGradient = computed(() => {
+  const c = connectivity.value
+  if (c >= 90 && conflicts.value === 0) return 'linear-gradient(90deg, transparent, #00ff88, #00f2ff, #00ff88, transparent)'
+  if (c >= 75) return 'linear-gradient(90deg, transparent, #00f2ff, #a855f7, #00f2ff, transparent)'
+  if (c >= 60) return 'linear-gradient(90deg, transparent, #ffaa00, #ff3b3b, #ffaa00, transparent)'
+  return 'linear-gradient(90deg, transparent, #ff3b3b, #ff3b3b, transparent)'
+})
+
 // Real system clock
 const realTime = ref('')
 let clockTimer: ReturnType<typeof setInterval> | null = null
@@ -75,6 +84,9 @@ onBeforeUnmount(() => {
         <span class="clock-value">{{ realTime }}</span>
       </div>
     </div>
+
+    <!-- Dynamic health status line -->
+    <div class="health-status-line" :style="{ background: healthGradient }"></div>
   </header>
 </template>
 
@@ -134,12 +146,17 @@ onBeforeUnmount(() => {
 }
 
 .logo-svg {
-  animation: logo-spin 12s linear infinite;
+  animation: logo-breathe 3s ease-in-out infinite, logo-spin 20s linear infinite;
 }
 
 @keyframes logo-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+@keyframes logo-breathe {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(0, 242, 255, 0.5)); }
+  50% { filter: drop-shadow(0 0 16px rgba(0, 242, 255, 1)); }
 }
 
 .logo-text {
@@ -213,5 +230,16 @@ onBeforeUnmount(() => {
   font-weight: 500;
   color: var(--text-secondary);
   letter-spacing: 1px;
+}
+
+.health-status-line {
+  position: absolute;
+  bottom: -1px;
+  left: 5%;
+  right: 5%;
+  height: 2px;
+  border-radius: 1px;
+  transition: background 1s ease;
+  z-index: 2;
 }
 </style>

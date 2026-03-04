@@ -9,6 +9,7 @@ import UAVDetail from './components/UAVDetail.vue'
 import AlertOverlay from './components/AlertOverlay.vue'
 import ScenarioEditor from './components/ScenarioEditor.vue'
 import ResearchLab from './components/ResearchLab.vue'
+import IntroSequence from './components/IntroSequence.vue'
 import { usePlaybackEngine } from './composables/usePlaybackEngine'
 import { generateMockFrames } from './data/mockData'
 import { loadCSVFrames } from './services/csvParser'
@@ -19,8 +20,18 @@ const selectedUAV = ref<UAVNode | null>(null)
 const showAlert = ref(false)
 const showEditor = ref(false)
 const showLab = ref(false)
+const showIntro = ref(true)
+const panelsRevealed = ref(false)
 const dataMode = ref<'mock' | 'csv'>('mock')
 const loading = ref(true)
+
+function onIntroComplete() {
+  showIntro.value = false
+  // Trigger staggered panel reveal after intro
+  requestAnimationFrame(() => {
+    panelsRevealed.value = true
+  })
+}
 
 provide('engine', engine)
 provide('selectedUAV', selectedUAV)
@@ -62,16 +73,19 @@ onMounted(async () => {
 
 <template>
   <div class="app-root">
+    <!-- 开场动画 -->
+    <IntroSequence v-if="showIntro" @complete="onIntroComplete" />
+
     <!-- 全局告警覆层 -->
     <AlertOverlay :active="showAlert" />
 
     <!-- 顶栏 -->
-    <TopBar />
+    <TopBar :class="{ 'panel-reveal panel-reveal-1': panelsRevealed }" />
 
     <!-- 三栏主体 -->
     <div class="main-body">
-      <LeftPanel class="panel-left" />
-      <div class="panel-center">
+      <LeftPanel class="panel-left" :class="{ 'panel-reveal panel-reveal-2': panelsRevealed }" />
+      <div class="panel-center" :class="{ 'panel-reveal panel-reveal-3': panelsRevealed }">
         <CenterSandbox @select-uav="onSelectUAV" />
         <!-- 浮动工具按钮 -->
         <div class="floating-tools">
@@ -83,24 +97,30 @@ onMounted(async () => {
           </button>
         </div>
       </div>
-      <RightPanel class="panel-right" />
+      <RightPanel class="panel-right" :class="{ 'panel-reveal panel-reveal-4': panelsRevealed }" />
     </div>
 
     <!-- 底部播放控制 -->
-    <PlaybackBar />
+    <PlaybackBar :class="{ 'panel-reveal panel-reveal-5': panelsRevealed }" />
 
     <!-- 无人机详情弹窗 -->
-    <UAVDetail
-      v-if="selectedUAV"
-      :uav="selectedUAV"
-      @close="selectedUAV = null"
-    />
+    <Transition name="modal">
+      <UAVDetail
+        v-if="selectedUAV"
+        :uav="selectedUAV"
+        @close="selectedUAV = null"
+      />
+    </Transition>
 
     <!-- 场景编辑器 -->
-    <ScenarioEditor v-if="showEditor" @close="showEditor = false" />
+    <Transition name="modal">
+      <ScenarioEditor v-if="showEditor" @close="showEditor = false" />
+    </Transition>
 
     <!-- 科研实验室 -->
-    <ResearchLab v-if="showLab" @close="showLab = false" />
+    <Transition name="modal">
+      <ResearchLab v-if="showLab" @close="showLab = false" />
+    </Transition>
   </div>
 </template>
 
@@ -173,5 +193,44 @@ onMounted(async () => {
   border-color: var(--cyan);
   box-shadow: var(--cyan-glow);
   transform: scale(1.1);
+}
+
+/* ── Panel Staggered Reveal ── */
+.panel-reveal {
+  animation: panelSlideIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.panel-reveal-1 { animation-delay: 0s; }
+.panel-reveal-2 { animation-delay: 0.1s; }
+.panel-reveal-3 { animation-delay: 0.2s; }
+.panel-reveal-4 { animation-delay: 0.3s; }
+.panel-reveal-5 { animation-delay: 0.4s; }
+
+@keyframes panelSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.97);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* ── Modal Transitions ── */
+.modal-enter-active {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.modal-leave-active {
+  transition: all 0.2s ease;
+}
+.modal-enter-from {
+  opacity: 0;
+  transform: scale(0.95) translateY(10px);
+}
+.modal-leave-to {
+  opacity: 0;
+  transform: scale(0.97);
 }
 </style>

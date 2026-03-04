@@ -7,6 +7,12 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import type { UAVNode, BuildingBlock } from '../types'
 import { activeScene, sceneVersion } from '../composables/useScene'
 
+// Hover tooltip state
+const hoverInfo = ref<{ show: boolean; x: number; y: number; uav: UAVNode | null }>({
+  show: false, x: 0, y: 0, uav: null
+})
+const selectedUAVId = inject<any>('selectedUAV')
+
 const emit = defineEmits<{
   (e: 'select-uav', uav: UAVNode | null): void
 }>()
@@ -32,6 +38,8 @@ let sceneGroup: THREE.Group  // Rebuildable buildings + zones
 let interpPositions: Map<number, { x: number; y: number; z: number }> = new Map()
 let uavTrails: Map<number, THREE.Vector3[]> = new Map()
 let trailLines: Map<number, THREE.Line> = new Map()
+let starField: THREE.Points
+let envParticles: THREE.Points
 
 // Mouse
 let raycaster = new THREE.Raycaster()
@@ -113,6 +121,12 @@ function initScene() {
   // Ground (static)
   createGround()
 
+  // Starfield background
+  createStarfield()
+
+  // Floating environment particles
+  createEnvParticles()
+
   // Rebuildable scene objects
   sceneGroup = new THREE.Group()
   scene.add(sceneGroup)
@@ -141,6 +155,51 @@ function initScene() {
   composer = new EffectComposer(renderer)
   composer.addPass(renderPass)
   composer.addPass(bloomPass)
+}
+
+function createStarfield() {
+  const starCount = 600
+  const positions = new Float32Array(starCount * 3)
+  const sizes = new Float32Array(starCount)
+  for (let i = 0; i < starCount; i++) {
+    positions[i * 3] = (Math.random() - 0.5) * 2000
+    positions[i * 3 + 1] = Math.random() * 800 + 100
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 2000
+    sizes[i] = Math.random() * 2 + 0.5
+  }
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1))
+  const mat = new THREE.PointsMaterial({
+    color: 0xaaccff,
+    size: 1.5,
+    transparent: true,
+    opacity: 0.6,
+    sizeAttenuation: true,
+  })
+  starField = new THREE.Points(geo, mat)
+  scene.add(starField)
+}
+
+function createEnvParticles() {
+  const count = 200
+  const positions = new Float32Array(count * 3)
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = Math.random() * GRID
+    positions[i * 3 + 1] = Math.random() * 120 + 5
+    positions[i * 3 + 2] = Math.random() * GRID
+  }
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  const mat = new THREE.PointsMaterial({
+    color: 0x00f2ff,
+    size: 1.2,
+    transparent: true,
+    opacity: 0.25,
+    sizeAttenuation: true,
+  })
+  envParticles = new THREE.Points(geo, mat)
+  scene.add(envParticles)
 }
 
 function createGround() {
@@ -515,6 +574,9 @@ function updateLinks() {
   const uavs: UAVNode[] = frame.value.uav_nodes
   const time = clock.getElapsedTime()
 
+  // Get selected UAV ID for link highlighting
+  const selId = selectedUAVId?.value?.id ?? null
+
   for (let i = 0; i < uavs.length; i++) {
     for (let j = i + 1; j < uavs.length; j++) {
       const a = uavs[i], b = uavs[j]
@@ -532,18 +594,25 @@ function updateLinks() {
 
       let color = 0x00f2ff
       let opacity = 0.15
-      let lineWidth = 1
 
       if (a.is_conflict || b.is_conflict) {
         color = 0xff3b3b
         opacity = 0.4 + Math.sin(time * 10) * 0.3
       } else {
-        // 动态 NLOS 检测：使用 activeScene 的建筑物实时判断
         const aNlos = checkNLOSDynamic(a.x, a.y)
         const bNlos = checkNLOSDynamic(b.x, b.y)
         if (aNlos || bNlos) {
           color = 0xffaa00
           opacity = 0.3
+        }
+      }
+
+      // Link focus highlighting: dim links not connected to the selected UAV
+      if (selId !== null) {
+        if (a.id === selId || b.id === selId) {
+          opacity = Math.min(opacity * 2.5, 0.9) // Brighten connected links
+        } else {
+          opacity *= 0.15 // Dim unrelated links
         }
       }
 
@@ -553,18 +622,14 @@ function updateLinks() {
       const line = new THREE.Line(geo, mat)
       linkLines.add(line)
 
-      // --- Add Data Flow Animation ---
-      // We create a few points moving along the line from A to B (or B to a based on ID)
-      if (opacity > 0) {
-        // Decide direction based on ID to make it consistent
+      // Data Flow Animation
+      if (opacity > 0.05) {
         const dir = b.id > a.id ? 1 : -1
-        const speed = (a.is_conflict || b.is_conflict) ? 0.5 : 2.5 // slower if conflict
+        const speed = (a.is_conflict || b.is_conflict) ? 0.5 : 2.5
         
-        // Calculate 3 moving points along the segment
         const flowPoints = []
         for (let k = 0; k < 3; k++) {
           const t = (time * speed + k * 0.33) % 1.0
-          // If dir is -1, swap t direction
           const actualT = dir === 1 ? t : 1 - t
           
           const px = posA.x + (posB.x - posA.x) * actualT
@@ -578,7 +643,7 @@ function updateLinks() {
           color: color,
           size: 1.5,
           transparent: true,
-          opacity: 0.8,
+          opacity: Math.min(opacity * 1.5, 0.8),
           sizeAttenuation: true
         })
         const flowMesh = new THREE.Points(flowGeo, flowMat)
@@ -605,25 +670,50 @@ function onMouseDown(e: MouseEvent) {
 }
 
 function onMouseMove(e: MouseEvent) {
-  if (!isDragging) return
-  const dx = e.clientX - prevMouse.x
-  const dy = e.clientY - prevMouse.y
-  prevMouse = { x: e.clientX, y: e.clientY }
+  if (isDragging) {
+    hoverInfo.value.show = false
+    const dx = e.clientX - prevMouse.x
+    const dy = e.clientY - prevMouse.y
+    prevMouse = { x: e.clientX, y: e.clientY }
 
-  if (e.shiftKey || e.buttons === 4) {
-    // Pan
-    const right = new THREE.Vector3()
-    const up = new THREE.Vector3(0, 1, 0)
-    camera.getWorldDirection(right)
-    right.cross(up).normalize()
-    cameraTarget.addScaledVector(right, -dx * 0.5)
-    cameraTarget.y += dy * 0.5
-  } else {
-    // Orbit
-    cameraAngle.theta -= dx * 0.005
-    cameraAngle.phi = Math.max(0.1, Math.min(Math.PI * 0.45, cameraAngle.phi + dy * 0.005))
+    if (e.shiftKey || e.buttons === 4) {
+      const right = new THREE.Vector3()
+      const up = new THREE.Vector3(0, 1, 0)
+      camera.getWorldDirection(right)
+      right.cross(up).normalize()
+      cameraTarget.addScaledVector(right, -dx * 0.5)
+      cameraTarget.y += dy * 0.5
+    } else {
+      cameraAngle.theta -= dx * 0.005
+      cameraAngle.phi = Math.max(0.1, Math.min(Math.PI * 0.45, cameraAngle.phi + dy * 0.005))
+    }
+    updateCameraPosition()
+    return
   }
-  updateCameraPosition()
+
+  // Hover detection for tooltip
+  if (!frame.value || !renderer) return
+  const rect = renderer.domElement.getBoundingClientRect()
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+  raycaster.setFromCamera(mouse, camera)
+  const meshes = Array.from(uavMeshes.values())
+  const intersects = raycaster.intersectObjects(meshes, true)
+
+  if (intersects.length > 0) {
+    let obj: THREE.Object3D | null = intersects[0].object
+    while (obj && obj.userData.uavId === undefined) obj = obj.parent
+    if (obj && obj.userData.uavId !== undefined) {
+      const uav = frame.value.uav_nodes.find((u: UAVNode) => u.id === obj!.userData.uavId)
+      if (uav) {
+        hoverInfo.value = { show: true, x: e.clientX, y: e.clientY, uav }
+        renderer.domElement.style.cursor = 'pointer'
+        return
+      }
+    }
+  }
+  hoverInfo.value.show = false
+  renderer.domElement.style.cursor = 'grab'
 }
 
 function onMouseUp() {
@@ -660,8 +750,27 @@ function onClick(e: MouseEvent) {
 
 function animate() {
   animId = requestAnimationFrame(animate)
+  const time = clock.getElapsedTime()
   updateUAVs()
   updateLinks()
+
+  // Animate environment particles (gentle float)
+  if (envParticles) {
+    const pos = envParticles.geometry.attributes.position as THREE.BufferAttribute
+    for (let i = 0; i < pos.count; i++) {
+      let y = pos.getY(i)
+      y += 0.05 + Math.sin(time + i) * 0.02
+      if (y > 130) y = 5
+      pos.setY(i, y)
+    }
+    pos.needsUpdate = true
+  }
+
+  // Slow star rotation for parallax
+  if (starField) {
+    starField.rotation.y = time * 0.003
+  }
+
   if (composer) {
     composer.render()
   } else if (renderer) {
@@ -724,7 +833,39 @@ onBeforeUnmount(() => {
 <template>
   <div ref="containerRef" class="sandbox-container glass-panel">
     <div class="sandbox-label">TACTICAL OVERVIEW — 3D</div>
-    <div class="camera-hint">🖱 拖拽旋转 | Shift+拖拽平移 | 滚轮缩放</div>
+    <div class="camera-hint">🖱 拖拽旋转 | Shift+拖拽平移 | 滚轮缩放 | 点击无人机查看详情</div>
+
+    <!-- Hover Tooltip -->
+    <Teleport to="body">
+      <div
+        v-if="hoverInfo.show && hoverInfo.uav"
+        class="uav-hover-tooltip"
+        :style="{ left: hoverInfo.x + 16 + 'px', top: hoverInfo.y - 10 + 'px' }"
+      >
+        <div class="tooltip-header">
+          <span class="tooltip-id" :style="{
+            background: ['#00f2ff','#a855f7','#00ff88'][hoverInfo.uav.channel] || '#00f2ff',
+            color: '#040714'
+          }">UAV-{{ String(hoverInfo.uav.id).padStart(2, '0') }}</span>
+          <span class="tooltip-ch">CH{{ hoverInfo.uav.channel + 1 }}</span>
+        </div>
+        <div class="tooltip-row">
+          <span>⚡ 电量</span>
+          <span class="tooltip-val" :class="{ low: hoverInfo.uav.energy < 20 }">{{ hoverInfo.uav.energy.toFixed(0) }}%</span>
+        </div>
+        <div class="tooltip-row">
+          <span>📡 状态</span>
+          <span class="tooltip-val" :class="{
+            conflict: hoverInfo.uav.is_conflict,
+            nlos: hoverInfo.uav.is_nlos && !hoverInfo.uav.is_conflict
+          }">{{ hoverInfo.uav.is_conflict ? '同频冲突' : (hoverInfo.uav.is_nlos ? 'NLOS遮挡' : '正常') }}</span>
+        </div>
+        <div class="tooltip-row">
+          <span>📍 坐标</span>
+          <span class="tooltip-val">{{ hoverInfo.uav.x.toFixed(0) }}, {{ hoverInfo.uav.y.toFixed(0) }}</span>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -766,5 +907,78 @@ onBeforeUnmount(() => {
   color: rgba(0, 242, 255, 0.25);
   pointer-events: none;
   z-index: 10;
+}
+</style>
+
+<style>
+/* Global (unscoped) styles for the hover tooltip teleported to body */
+.uav-hover-tooltip {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  background: rgba(4, 7, 20, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 242, 255, 0.2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  min-width: 160px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 242, 255, 0.1);
+  animation: tooltipIn 0.15s ease;
+}
+
+@keyframes tooltipIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(0, 242, 255, 0.1);
+}
+
+.tooltip-id {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.tooltip-ch {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #94a3b8;
+  padding: 2px 0;
+  font-family: 'Noto Sans SC', sans-serif;
+}
+
+.tooltip-val {
+  font-family: 'JetBrains Mono', monospace;
+  color: #e2e8f0;
+  font-weight: 500;
+}
+
+.tooltip-val.conflict {
+  color: #ff3b3b;
+  text-shadow: 0 0 6px rgba(255, 59, 59, 0.5);
+}
+
+.tooltip-val.nlos {
+  color: #ffaa00;
+}
+
+.tooltip-val.low {
+  color: #ff3b3b;
 }
 </style>
