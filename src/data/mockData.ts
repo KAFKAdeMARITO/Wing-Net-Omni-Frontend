@@ -1,6 +1,7 @@
 /**
  * Mock 数据生成器
  * 生成 15 架无人机在 300 tick 内的仿真数据
+ * 支持多种阵型：v_formation, line, triangle, cross
  */
 import type { FrameData, UAVNode, BuildingBlock, SceneConfig } from '../types'
 
@@ -29,11 +30,14 @@ export const defaultScene: SceneConfig = {
     gridSize: GRID_SIZE
 }
 
-/** V 字编队初始位置生成 */
+// ──────────────── 阵型生成器 ────────────────
+
+export type FormationType = 'v_formation' | 'line' | 'triangle' | 'cross'
+
+/** V 字编队 */
 function generateVFormation(centerX: number, centerY: number, count: number, spacing: number): Array<{ x: number, y: number }> {
     const positions: Array<{ x: number, y: number }> = []
     const half = Math.floor(count / 2)
-    // Leader
     positions.push({ x: centerX, y: centerY })
     for (let i = 1; i <= half; i++) {
         positions.push({ x: centerX - i * spacing * 0.7, y: centerY + i * spacing })
@@ -42,6 +46,71 @@ function generateVFormation(centerX: number, centerY: number, count: number, spa
         }
     }
     return positions.slice(0, count)
+}
+
+/** 直线编队 */
+function generateLineFormation(centerX: number, centerY: number, count: number, spacing: number): Array<{ x: number, y: number }> {
+    const positions: Array<{ x: number, y: number }> = []
+    const startX = centerX - ((count - 1) * spacing) / 2
+    for (let i = 0; i < count; i++) {
+        positions.push({ x: startX + i * spacing, y: centerY })
+    }
+    return positions
+}
+
+/** 三角形编队 */
+function generateTriangleFormation(centerX: number, centerY: number, count: number, spacing: number): Array<{ x: number, y: number }> {
+    const positions: Array<{ x: number, y: number }> = []
+    // Leader at front
+    positions.push({ x: centerX, y: centerY })
+    // Fill rows: row 1 has 2, row 2 has 3, row 3 has 4, etc.
+    let row = 1
+    while (positions.length < count) {
+        const cols = row + 1
+        const rowY = centerY + row * spacing
+        const startX = centerX - (cols - 1) * spacing * 0.5
+        for (let c = 0; c < cols && positions.length < count; c++) {
+            positions.push({ x: startX + c * spacing, y: rowY })
+        }
+        row++
+    }
+    return positions.slice(0, count)
+}
+
+/** 十字形编队 */
+function generateCrossFormation(centerX: number, centerY: number, count: number, spacing: number): Array<{ x: number, y: number }> {
+    const positions: Array<{ x: number, y: number }> = []
+    // Center
+    positions.push({ x: centerX, y: centerY })
+    // Fill arms: up, right, down, left, alternating outward
+    let ring = 1
+    while (positions.length < count) {
+        // Up
+        if (positions.length < count) positions.push({ x: centerX, y: centerY - ring * spacing })
+        // Right
+        if (positions.length < count) positions.push({ x: centerX + ring * spacing, y: centerY })
+        // Down
+        if (positions.length < count) positions.push({ x: centerX, y: centerY + ring * spacing })
+        // Left
+        if (positions.length < count) positions.push({ x: centerX - ring * spacing, y: centerY })
+        ring++
+    }
+    return positions.slice(0, count)
+}
+
+/** 统一阵型生成接口 */
+export function generateFormation(
+    type: FormationType,
+    centerX: number, centerY: number,
+    count: number, spacing: number
+): Array<{ x: number, y: number }> {
+    switch (type) {
+        case 'v_formation': return generateVFormation(centerX, centerY, count, spacing)
+        case 'line': return generateLineFormation(centerX, centerY, count, spacing)
+        case 'triangle': return generateTriangleFormation(centerX, centerY, count, spacing)
+        case 'cross': return generateCrossFormation(centerX, centerY, count, spacing)
+        default: return generateVFormation(centerX, centerY, count, spacing)
+    }
 }
 
 /** 检测 NLOS: 简单检查无人机是否在建筑物后方 */
@@ -56,26 +125,19 @@ function checkNLOS(x: number, y: number, buildings: BuildingBlock[]): boolean {
 }
 
 /** 生成全部帧数据 */
-export function generateMockFrames(): FrameData[] {
+export function generateMockFrames(formation: FormationType = 'v_formation'): FrameData[] {
     const frames: FrameData[] = []
-    const initPositions = generateVFormation(300, 80, NUM_UAVS, 35)
-
-    // 编队整体运动方向与速度
-    const speedX = 0.3
-    const speedY = 0.8
 
     for (let tick = 0; tick < TOTAL_TICKS; tick++) {
         const t = tick / TOTAL_TICKS
         const uavs: UAVNode[] = []
 
-        // 模拟 V 字编队向前推进
+        // 编队整体运动
         const formationCenterX = 300 + Math.sin(t * Math.PI * 2) * 120
         const formationCenterY = 80 + t * 400
-
-        // Wrap around when reaching edge
         const wrappedY = formationCenterY % GRID_SIZE
 
-        const currentPositions = generateVFormation(formationCenterX, wrappedY, NUM_UAVS, 35)
+        const currentPositions = generateFormation(formation, formationCenterX, wrappedY, NUM_UAVS, 35)
 
         let conflictCount = 0
 
@@ -89,14 +151,14 @@ export function generateMockFrames(): FrameData[] {
             const px = Math.max(20, Math.min(GRID_SIZE - 20, basePos.x + jitterX))
             const py = Math.max(20, Math.min(GRID_SIZE - 20, basePos.y + jitterY))
 
-            // 信道分配: 图着色算法模拟 - 大部分时间无冲突
+            // 信道分配
             let channel = i % 3
             const isNlos = checkNLOS(px, py, defaultBuildings)
 
             // 偶尔模拟冲突事件
             let isConflict = false
             if (tick > 100 && tick < 130 && (i === 3 || i === 4)) {
-                channel = 1  // 故意同频
+                channel = 1
                 isConflict = true
                 conflictCount++
             }
@@ -113,6 +175,7 @@ export function generateMockFrames(): FrameData[] {
                 id: i,
                 x: px,
                 y: py,
+                z: 30, // Added z property
                 channel,
                 is_conflict: isConflict,
                 is_nlos: isNlos,
@@ -121,7 +184,8 @@ export function generateMockFrames(): FrameData[] {
                 pdr: Math.round(basePdr * 1000) / 1000,
                 delay: Math.round(baseDelay * 10) / 10,
                 throughput: Math.round(baseThroughput * 10) / 10,
-                power: 20 - Math.random() * 5
+                power: 20 - Math.random() * 5,
+                rate: 54 // Added rate property
             })
         }
 

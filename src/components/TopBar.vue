@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { inject, computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { currentFormation, formationLabels, formationIcons, switchFormation } from '../composables/useFormation'
+import type { FormationType } from '../data/mockData'
 
 const engine = inject<any>('engine')
 const frame = computed(() => engine?.currentFrame?.value)
@@ -70,6 +72,24 @@ onBeforeUnmount(() => {
         <div class="chip">
           <span class="dot cyan-dot"></span>
           引擎在线
+        </div>
+      </div>
+
+      <!-- 阵型切换 -->
+      <div class="formation-selector">
+        <span class="formation-label">FORMATION</span>
+        <div class="formation-btns">
+          <button
+            v-for="fType in (['v_formation', 'line', 'triangle', 'cross'] as FormationType[])"
+            :key="fType"
+            class="formation-btn"
+            :class="{ active: currentFormation === fType }"
+            @click="switchFormation(fType)"
+            :title="formationLabels[fType]"
+          >
+            <span class="formation-icon">{{ formationIcons[fType] }}</span>
+            <span class="formation-name">{{ formationLabels[fType] }}</span>
+          </button>
         </div>
       </div>
     </div>
@@ -241,5 +261,63 @@ onBeforeUnmount(() => {
   border-radius: 1px;
   transition: background 1s ease;
   z-index: 2;
+}
+
+/* ── Formation Selector ── */
+.formation-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 16px;
+  padding-left: 16px;
+  border-left: 1px solid var(--glass-border);
+}
+
+.formation-label {
+  font-family: var(--font-display);
+  font-size: 8px;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+}
+
+.formation-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.formation-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.formation-btn:hover {
+  color: var(--cyan);
+  border-color: var(--glass-border);
+}
+
+.formation-btn.active {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  background: var(--cyan-dim);
+  box-shadow: 0 0 8px rgba(0, 242, 255, 0.15);
+}
+
+.formation-icon {
+  font-size: 12px;
+}
+
+.formation-name {
+  font-size: 10px;
 }
 </style>

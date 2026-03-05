@@ -26,36 +26,51 @@ function checkNLOS(x: number, y: number, buildings: Array<{ x: number; y: number
     return false
 }
 
-/** 从 4 个 CSV 文件加载并合并为 FrameData[] */
 export async function loadCSVFrames(basePath: string = '/data'): Promise<FrameData[]> {
-    // 并行加载所有 CSV
-    const [qosRows, resRows, topoRows, posRows] = await Promise.all([
-        fetchCSV<any>(`${basePath}/qos_performance.csv`),
-        fetchCSV<any>(`${basePath}/resource_allocation.csv`),
-        fetchCSV<any>(`${basePath}/topology_evolution.csv`),
-        fetchCSV<any>(`${basePath}/positions.csv`),
-    ])
+    // 尝试拉取 CSV，发生异常时降级优雅处理
+    let qosRows: any[] = []
+    let resRows: any[] = []
+    let topoRows: any[] = []
+    let posRows: any[] = []
 
-    // 索引化: 按 time 分组
+    try {
+        [qosRows, resRows, topoRows, posRows] = await Promise.all([
+            fetchCSV<any>(`${basePath}/qos_performance.csv`).catch(() => []),
+            fetchCSV<any>(`${basePath}/resource_allocation.csv`).catch(() => []),
+            fetchCSV<any>(`${basePath}/topology_evolution.csv`).catch(() => []),
+            fetchCSV<any>(`${basePath}/rtk-node-positions.csv`).catch(() => []),
+        ])
+    } catch (e) {
+        console.warn('Failed to fetch some CSVs', e)
+    }
+
+    // 如果找不到 rtk-node-positions.csv，尝试找旧的 positions.csv
+    if (posRows.length === 0) {
+        posRows = await fetchCSV<any>(`${basePath}/positions.csv`).catch(() => [])
+    }
+
+    // 索引化: 按 time 取整分组，容忍少量时间差异
     const qosMap = new Map<number, any>()
-    for (const r of qosRows) qosMap.set(Number(r.time), r)
+    for (const r of qosRows) qosMap.set(Math.round(Number(r.time || 0)), r)
 
     const resMap = new Map<number, any>()
-    for (const r of resRows) resMap.set(Number(r.time), r)
+    for (const r of resRows) resMap.set(Math.round(Number(r.time || 0)), r)
 
     const topoMap = new Map<number, any>()
-    for (const r of topoRows) topoMap.set(Number(r.time), r)
+    for (const r of topoRows) topoMap.set(Math.round(Number(r.time || 0)), r)
 
-    // positions 每行是 (time, uav_id, pos_x, pos_y, rtk_drift_error)
-    // 按 time 分组
-    const posMap = new Map<number, Map<number, { x: number; y: number; drift: number }>>()
+    // positions 每行是新款 (time_s, nodeId, x, y, z) 或旧款 (time, uav_id, pos_x, pos_y)
+    const posMap = new Map<number, Map<number, { x: number; y: number; z: number; drift: number }>>()
     for (const r of posRows) {
-        const t = Number(r.time)
+        const t = Math.round(Number(r.time_s ?? r.time ?? 0))
+        const uid = Number(r.nodeId ?? r.uav_id ?? 0)
+
         if (!posMap.has(t)) posMap.set(t, new Map())
-        posMap.get(t)!.set(Number(r.uav_id), {
-            x: Number(r.pos_x),
-            y: Number(r.pos_y),
-            drift: Number(r.rtk_drift_error) || 0
+        posMap.get(t)!.set(uid, {
+            x: Number(r.x ?? r.pos_x ?? 0),
+            y: Number(r.y ?? r.pos_y ?? 0),
+            z: Number(r.z ?? 30),
+            drift: Number(r.rtk_drift_error || 0)
         })
     }
 
@@ -72,7 +87,7 @@ export async function loadCSVFrames(basePath: string = '/data'): Promise<FrameDa
         { x: 100, y: 280, w: 50, d: 40 },
     ]
 
-    // 提取所有时间戳
+    // 提取所有时间戳 (由于使用了 Math.round，这里都是整数 tick)
     const allTimes = [...new Set([
         ...qosMap.keys(), ...resMap.keys(), ...topoMap.keys(), ...posMap.keys()
     ])].sort((a, b) => a - b)
@@ -89,24 +104,31 @@ export async function loadCSVFrames(basePath: string = '/data'): Promise<FrameDa
         let conflictCount = 0
 
         for (let i = 0; i < NUM_UAVS; i++) {
-            const pos = positions.get(i) || { x: 300, y: 300, drift: 0 }
-            const ch = Number(res[`uav${i}_ch`]) || (i % 3)
-            const pwr = Number(res[`uav${i}_pwr`]) || 20
-            const pdr = Number(qos[`uav${i}_pdr`]) || Number(qos.avg_pdr) || 0.9
-            const delay = Number(qos[`uav${i}_delay`]) || Number(qos.avg_delay) || 15
-            const tp = Number(qos[`uav${i}_throughput`]) || Number(qos.avg_throughput) || 100
+            const pos = positions.get(i) || { x: 300, y: 300, z: 30, drift: 0 }
+
+            // 兼容旧的 uavX_ch 和新的 uavX_channel
+            const ch = Number(res[`uav${i}_channel`] ?? res[`uav${i}_ch`] ?? (i % 3))
+            // 兼容旧的 uavX_pwr 和新的 uavX_power
+            const pwr = Number(res[`uav${i}_power`] ?? res[`uav${i}_pwr`] ?? 20)
+            const rate = Number(res[`uav${i}_rate`] ?? 0)
+
+            const pdr = Number(qos[`uav${i}_pdr`] ?? qos.avg_pdr ?? 0.9)
+            const delay = Number(qos[`uav${i}_delay`] ?? qos.avg_delay ?? 15)
+            const tp = Number(qos[`uav${i}_throughput`] ?? qos.avg_throughput ?? 100)
 
             const isNlos = checkNLOS(pos.x, pos.y, buildings)
 
             // 冲突检测: 同频且近距离
             let isConflict = false
             for (let j = 0; j < i; j++) {
-                const otherPos = positions.get(j) || { x: 0, y: 0, drift: 0 }
-                const otherCh = Number(res[`uav${j}_ch`]) || (j % 3)
+                const otherPos = positions.get(j) || { x: 0, y: 0, z: 0, drift: 0 }
+                const otherCh = Number(res[`uav${j}_channel`] ?? res[`uav${j}_ch`] ?? (j % 3))
                 if (otherCh === ch) {
                     const dx = pos.x - otherPos.x
                     const dy = pos.y - otherPos.y
-                    if (Math.sqrt(dx * dx + dy * dy) < 120) {
+                    const dz = pos.z - otherPos.z
+                    // 3D 距离冲突检测
+                    if (Math.sqrt(dx * dx + dy * dy + dz * dz) < 120) {
                         isConflict = true
                         conflictCount++
                         break
@@ -121,12 +143,13 @@ export async function loadCSVFrames(basePath: string = '/data'): Promise<FrameDa
                 id: i,
                 x: pos.x + (pos.drift > 0 ? (Math.random() - 0.5) * pos.drift : 0),
                 y: pos.y + (pos.drift > 0 ? (Math.random() - 0.5) * pos.drift : 0),
+                z: pos.z,
                 channel: ch,
                 is_conflict: isConflict,
                 is_nlos: isNlos,
                 energy: Math.round(energy * 10) / 10,
                 is_active: true,
-                pdr, delay, throughput: tp, power: pwr
+                pdr, delay, throughput: tp, power: pwr, rate
             })
         }
 

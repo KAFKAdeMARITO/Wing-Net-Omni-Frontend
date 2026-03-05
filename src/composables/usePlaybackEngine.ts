@@ -24,6 +24,16 @@ function checkNLOSDynamic(x: number, y: number): boolean {
     return false
 }
 
+// 检测无人机是否在干扰圈内
+function checkInterferenceZone(x: number, y: number): { inZone: boolean; strength: number } {
+    for (const z of activeScene.interferenceZones) {
+        const dx = x - z.x, dy = y - z.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        if (dist < z.radius) return { inZone: true, strength: z.strength }
+    }
+    return { inZone: false, strength: 0 }
+}
+
 // 动态应用由 activeScene 控制的实时遮挡状态到历史/预先生成的帧中
 function applyDynamicSceneToFrame(frame: FrameData): FrameData {
     // 1. Detect dynamic co-channel interference (distance < 80m && same channel)
@@ -36,7 +46,8 @@ function applyDynamicSceneToFrame(frame: FrameData): FrameData {
             if (a.channel === b.channel) {
                 const dx = a.x - b.x
                 const dy = a.y - b.y
-                const dist = Math.sqrt(dx * dx + dy * dy)
+                const dz = (a.z || 30) - (b.z || 30)
+                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
                 if (dist < 80) { // Interference range
                     conflictIds.add(a.id)
                     conflictIds.add(b.id)
@@ -48,6 +59,8 @@ function applyDynamicSceneToFrame(frame: FrameData): FrameData {
     const patchedUavs = frame.uav_nodes.map(uav => {
         const isNlos = checkNLOSDynamic(uav.x, uav.y)
         const isConflict = conflictIds.has(uav.id)
+        const zoneCheck = checkInterferenceZone(uav.x, uav.y)
+        const isInZone = zoneCheck.inZone
 
         let pdr = uav.pdr || 0.95
         let delay = uav.delay || 15
@@ -58,6 +71,12 @@ function applyDynamicSceneToFrame(frame: FrameData): FrameData {
             pdr = 0.65 + (uav.id % 5) * 0.02
             delay = 45 + (uav.id % 15)
             throughput = 50 + (uav.id % 20)
+        } else if (isInZone) {
+            // 干扰圈内：按强度施加惩罚
+            const s = zoneCheck.strength
+            pdr = (0.93 + (uav.id % 6) * 0.01) * (1 - s * 0.3)
+            delay = (8 + (uav.id % 10)) * (1 + s * 0.8)
+            throughput = (110 + (uav.id % 40)) * (1 - s * 0.5)
         } else if (isNlos) {
             // 物理遮挡：中度损失
             pdr = 0.82 + (uav.id % 10) * 0.01
@@ -74,6 +93,7 @@ function applyDynamicSceneToFrame(frame: FrameData): FrameData {
             ...uav,
             is_nlos: isNlos,
             is_conflict: isConflict,
+            is_in_zone: isInZone,
             pdr: Math.round(pdr * 1000) / 1000,
             delay: Math.round(delay * 10) / 10,
             throughput: Math.round(throughput * 10) / 10

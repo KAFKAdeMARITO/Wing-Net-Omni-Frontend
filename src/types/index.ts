@@ -5,6 +5,7 @@ export interface UAVNode {
     id: number
     x: number
     y: number
+    z: number
     channel: number       // 0/1/2 → CH1/CH2/CH3
     is_conflict: boolean
     is_nlos: boolean
@@ -15,6 +16,7 @@ export interface UAVNode {
     throughput?: number
     power?: number        // dBm
     rate?: number
+    is_in_zone?: boolean  // 是否在干扰圈内
 }
 
 /** 全局 QoS 指标 */
@@ -84,7 +86,7 @@ export interface QoSRow {
 
 export interface ResourceRow {
     time: number
-    [key: string]: number   // uavX_ch, uavX_pwr, uavX_rate
+    [key: string]: number   // uavX_channel, uavX_power, uavX_rate
 }
 
 export interface TopologyRow {
@@ -94,9 +96,18 @@ export interface TopologyRow {
 }
 
 export interface PositionRow {
-    time: number
-    uav_id: number
-    pos_x: number
-    pos_y: number
-    rtk_drift_error: number
+    time_s: number
+    nodeId: number
+    x: number
+    y: number
+    z: number
+}
+
+export interface FlowStatRow {
+    FlowId: number
+    Src: number
+    Dest: number
+    Tx: number
+    Rx: number
+    LossRate: number
 }

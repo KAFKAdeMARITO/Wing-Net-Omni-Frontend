@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, provide, ref } from 'vue'
+import { onMounted, provide, ref, watch } from 'vue'
 import TopBar from './components/TopBar.vue'
 import LeftPanel from './components/LeftPanel.vue'
 import RightPanel from './components/RightPanel.vue'
@@ -14,6 +14,8 @@ import { usePlaybackEngine } from './composables/usePlaybackEngine'
 import { generateMockFrames } from './data/mockData'
 import { loadCSVFrames } from './services/csvParser'
 import type { UAVNode } from './types'
+import { currentFormation } from './composables/useFormation'
+import type { FormationType } from './data/mockData'
 
 const engine = usePlaybackEngine()
 const selectedUAV = ref<UAVNode | null>(null)
@@ -27,6 +29,9 @@ const loading = ref(true)
 
 function onIntroComplete() {
   showIntro.value = false
+  // 确保回放从 frame 0 暂停开始，避免闪烁
+  engine.pause()
+  engine.seek(0)
   // Trigger staggered panel reveal after intro
   requestAnimationFrame(() => {
     panelsRevealed.value = true
@@ -35,6 +40,18 @@ function onIntroComplete() {
 
 provide('engine', engine)
 provide('selectedUAV', selectedUAV)
+provide('formation', currentFormation)
+
+// 监听阵型变化，重新生成 Mock 帧数据
+watch(currentFormation, (newFormation) => {
+  if (dataMode.value === 'mock') {
+    const wasPlaying = engine.isPlaying.value
+    const frames = generateMockFrames(newFormation)
+    engine.loadFrames(frames)
+    console.log(`[WingNet] 阵型切换: ${newFormation}，重新生成 ${frames.length} 帧`)
+    if (wasPlaying) engine.play()
+  }
+})
 
 function onSelectUAV(uav: UAVNode | null) {
   selectedUAV.value = uav
@@ -53,19 +70,21 @@ onMounted(async () => {
       const frames = await loadCSVFrames(csvPath)
       engine.loadFrames(frames)
       console.log(`[WingNet] CSV 加载完毕, 共 ${frames.length} 帧`)
+      // 不自动播放，等开场动画结束后由用户手动播放
     } else {
       dataMode.value = 'mock'
-      const frames = generateMockFrames()
+      const frames = generateMockFrames(currentFormation.value)
       engine.loadFrames(frames)
       console.log(`[WingNet] Mock 数据加载完毕, 共 ${frames.length} 帧`)
+      // 不自动播放，等开场动画结束后由用户手动播放
     }
-    engine.play()
+    // engine.play() — 已移除，防止开场动画结束后闪烁
   } catch (e) {
     console.error('[WingNet] 数据加载失败，回退到 Mock 模式', e)
     dataMode.value = 'mock'
-    const frames = generateMockFrames()
+    const frames = generateMockFrames(currentFormation.value)
     engine.loadFrames(frames)
-    engine.play()
+    // engine.play() — 已移除，防止开场动画结束后闪烁
   }
   loading.value = false
 })

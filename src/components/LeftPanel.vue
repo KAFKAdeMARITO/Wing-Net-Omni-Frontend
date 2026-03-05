@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { inject, computed, reactive, watch } from 'vue'
+import { inject, computed, reactive, watch, ref } from 'vue'
 import gsap from 'gsap'
+import { apiService, type SimulationConfig } from '../services/apiService'
+import { currentFormation } from '../composables/useFormation'
+import { activeScene } from '../composables/useScene'
 
 const engine = inject<any>('engine')
 const frame = computed(() => engine?.currentFrame?.value)
@@ -101,64 +104,116 @@ const uavList = computed(() => {
 
 const channelLabels = ['CH1', 'CH2', 'CH3']
 const channelColors = ['#00f2ff', '#a855f7', '#00ff88']
+
+// --- Simulation Controls ---
+const simConfig = reactive({
+  swarm_size: 15,
+  difficulty: 'Hard' as const,
+  strategy: 'dynamic' as const
+})
+const isSimulating = ref(false)
+
+async function handleStartSim() {
+  if (isSimulating.value) return
+  isSimulating.value = true
+  try {
+    const config: SimulationConfig = {
+      buildings: activeScene.buildings,
+      swarm_size: simConfig.swarm_size,
+      difficulty: simConfig.difficulty,
+      strategy: simConfig.strategy,
+      formation: currentFormation.value
+    }
+    const resultFrames = await apiService.startSimulation(config)
+    engine.loadFrames(resultFrames)
+    engine.play()
+  } catch(e) {
+    console.error('仿真启动失败', e)
+  } finally {
+    isSimulating.value = false
+  }
+}
 </script>
 
 <template>
   <aside class="left-panel">
-    <!-- QoS 健康圆环 -->
-    <div class="glass-panel health-ring-card">
-      <div class="section-title">QoS INDEX</div>
-      <div class="ring-container">
-        <svg viewBox="0 0 140 140" class="health-ring">
-          <!-- Outer decorative orbit -->
-          <circle cx="70" cy="70" r="66" fill="none" stroke="rgba(0,242,255,0.06)" stroke-width="0.5" stroke-dasharray="4 6" />
-          <!-- Background track -->
-          <circle cx="70" cy="70" r="56" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="8" />
-          <!-- Main arc -->
-          <circle cx="70" cy="70" r="56" fill="none"
-            :stroke="healthColor"
-            stroke-width="8"
-            stroke-linecap="round"
-            :stroke-dasharray="`${display.health * 3.52} 352`"
-            transform="rotate(-90 70 70)"
-            style="filter: drop-shadow(0 0 8px currentColor); transition: all 0.3s ease;" />
-          <!-- Rotating particle dots -->
-          <g class="ring-particles">
-            <circle cx="70" cy="4" r="1.5" :fill="healthColor" opacity="0.8" />
-            <circle cx="136" cy="70" r="1" :fill="healthColor" opacity="0.5" />
-            <circle cx="70" cy="136" r="1.2" :fill="healthColor" opacity="0.6" />
-          </g>
-        </svg>
-        <div class="ring-value" id="health-val" :style="{ color: healthColor }">
-          {{ displayHealth }}
+    <!-- 智能推演控制 -->
+    <div class="glass-panel sim-control-card">
+      <div class="section-title">智能推演控制台</div>
+      <div class="control-form compact">
+        <div class="form-row-multi">
+          <div class="form-group">
+            <label>规模</label>
+            <select v-model="simConfig.swarm_size" class="glass-select">
+              <option :value="15">15 架</option>
+              <option :value="30">30 架</option>
+              <option :value="50">50 架</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>难度</label>
+            <select v-model="simConfig.difficulty" class="glass-select">
+              <option value="Easy">Easy</option>
+              <option value="Moderate">Mid</option>
+              <option value="Hard">Hard</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex: 1.5;">
+            <label>策略</label>
+            <select v-model="simConfig.strategy" class="glass-select">
+              <option value="static">Static</option>
+              <option value="dynamic">AI Dynamic</option>
+            </select>
+          </div>
         </div>
-        <div class="ring-label">SYSTEM HEALTH</div>
+        <button class="glass-btn primary sim-btn" :class="{ loading: isSimulating }" @click="handleStartSim" :disabled="isSimulating">
+          <span v-if="!isSimulating">🚀 开始实景推演</span>
+          <span v-else>⏳ 计算中...</span>
+        </button>
       </div>
     </div>
 
-    <!-- 核心指标 -->
-    <div class="glass-panel metrics-card">
-      <div class="section-title">核心指标</div>
-      <div class="metrics-grid">
-        <div class="metric-item">
-          <span class="stat-label">平均 PDR</span>
-          <span class="stat-value green" id="m-pdr">{{ pdrPct }}%</span>
+    <!-- 监控总览 (Ring + Metrics) -->
+    <div class="glass-panel combined-qos-card">
+      <div class="section-title">网络效能总览</div>
+      <div class="combined-qos-content">
+        <!-- QoS 健康圆环 (缩放版) -->
+        <div class="ring-container small-ring">
+          <svg viewBox="0 0 100 100" class="health-ring">
+            <circle cx="50" cy="50" r="48" fill="none" stroke="rgba(0,242,255,0.06)" stroke-width="0.5" stroke-dasharray="3 4" />
+            <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="6" />
+            <circle cx="50" cy="50" r="42" fill="none"
+              :stroke="healthColor"
+              stroke-width="6"
+              stroke-linecap="round"
+              :stroke-dasharray="`${display.health * 2.64} 264`"
+              transform="rotate(-90 50 50)"
+              style="filter: drop-shadow(0 0 6px currentColor); transition: all 0.3s ease;" />
+          </svg>
+          <div class="ring-value small-val" id="health-val" :style="{ color: healthColor }">
+            {{ displayHealth }}
+          </div>
+          <div class="ring-label small-label">HEALTH</div>
         </div>
-        <div class="metric-item">
-          <span class="stat-label">P99 时延</span>
-          <span class="stat-value" id="m-delay">{{ latencyDisplay }}ms</span>
-        </div>
-        <div class="metric-item">
-          <span class="stat-label">总吞吐</span>
-          <span class="stat-value" id="m-tp">{{ throughput }}</span>
-        </div>
-        <div class="metric-item">
-          <span class="stat-label">活跃链路</span>
-          <span class="stat-value" id="m-link">{{ links }}</span>
-        </div>
-        <div class="metric-item full-width">
-          <span class="stat-label">全局连通率</span>
-          <span class="stat-value green" id="t-conn">{{ connectivity }}%</span>
+
+        <!-- 核心指标 -->
+        <div class="metrics-grid dense-grid">
+          <div class="metric-item">
+            <span class="stat-label">PDR</span>
+            <span class="stat-value green" id="m-pdr">{{ pdrPct }}%</span>
+          </div>
+          <div class="metric-item">
+            <span class="stat-label">P99时延</span>
+            <span class="stat-value" id="m-delay">{{ latencyDisplay }}ms</span>
+          </div>
+          <div class="metric-item">
+            <span class="stat-label">总吞吐</span>
+            <span class="stat-value" id="m-tp">{{ throughput }}</span>
+          </div>
+          <div class="metric-item">
+            <span class="stat-label">连通率</span>
+            <span class="stat-value green" id="t-conn">{{ connectivity }}%</span>
+          </div>
         </div>
       </div>
     </div>
@@ -198,16 +253,86 @@ const channelColors = ['#00f2ff', '#a855f7', '#00ff88']
   padding-right: 4px;
 }
 
-.health-ring-card {
-  padding: 16px;
-  text-align: center;
+.sim-control-card {
+  padding: 12px;
+  flex-shrink: 0;
 }
 
-.ring-container {
-  position: relative;
-  width: 145px;
-  height: 145px;
-  margin: 8px auto;
+.control-form.compact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-row-multi {
+  display: flex;
+  gap: 6px;
+  justify-content: space-between;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.form-group label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.glass-select {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  outline: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  width: 100%;
+}
+
+.glass-select:hover {
+  border-color: var(--cyan);
+}
+
+.sim-btn {
+  margin-top: 4px;
+  width: 100%;
+  padding: 8px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.sim-btn.loading {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+/* QoS 总览卡片 */
+.combined-qos-card {
+  padding: 12px;
+  flex-shrink: 0;
+}
+
+.combined-qos-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+/* 缩放版圆环 */
+.ring-container.small-ring {
+  width: 90px;
+  height: 90px;
+  margin: 0;
 }
 
 .health-ring {
@@ -215,40 +340,45 @@ const channelColors = ['#00f2ff', '#a855f7', '#00ff88']
   height: 100%;
 }
 
-.ring-particles {
-  transform-origin: 70px 70px;
-  animation: ring-orbit 8s linear infinite;
-}
-
-@keyframes ring-orbit {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.ring-value {
-  position: absolute;
-  top: 50%;
-  left: 50%;
+.ring-value.small-val {
+  font-size: 24px;
   transform: translate(-50%, -60%);
-  font-family: var(--font-display);
-  font-size: 32px;
-  font-weight: 900;
-  text-shadow: 0 0 20px currentColor;
 }
 
-.ring-label {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, 60%);
-  font-family: var(--font-display);
+.ring-label.small-label {
   font-size: 8px;
-  letter-spacing: 2px;
+  transform: translate(-50%, 70%);
+}
+
+/* 密集核心指标排列 */
+.metrics-grid.dense-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  row-gap: 8px;
+  column-gap: 12px;
+}
+
+.metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-label {
+  font-size: 10px;
   color: var(--text-dim);
 }
 
-.metrics-card {
-  padding: 14px;
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.stat-value.green {
+  color: #00ff88;
+  text-shadow: 0 0 8px rgba(0, 255, 136, 0.4);
 }
 
 .metrics-grid {

@@ -41,6 +41,9 @@ let trailLines: Map<number, THREE.Line> = new Map()
 let starField: THREE.Points
 let envParticles: THREE.Points
 
+// Interference zone dynamic meshes (for animate pulse)
+let zoneDynamicMeshes: { cylinder: THREE.Mesh; wire: THREE.Mesh; ring: THREE.Mesh }[] = []
+
 // Mouse
 let raycaster = new THREE.Raycaster()
 let mouse = new THREE.Vector2()
@@ -308,6 +311,7 @@ function createWindowLights(b: BuildingBlock, h: number) {
 }
 
 function createInterferenceZones() {
+  zoneDynamicMeshes = []
   for (const zone of activeScene.interferenceZones) {
     // Holographic dual-layer cylinder base
     const cylGeo = new THREE.CylinderGeometry(zone.radius, zone.radius, 80, 32, 1, true)
@@ -332,7 +336,6 @@ function createInterferenceZones() {
     })
     const wireCylinder = new THREE.Mesh(cylGeo, wireMat)
     wireCylinder.position.set(zone.x, 40, zone.y)
-    // Scale slightly larger to prevent z-fighting
     wireCylinder.scale.set(1.01, 1, 1.01)
     sceneGroup.add(wireCylinder)
 
@@ -354,6 +357,9 @@ function createInterferenceZones() {
     label.position.set(zone.x, 5, zone.y)
     label.scale.set(30, 15, 1)
     sceneGroup.add(label)
+
+    // Store refs for animation
+    zoneDynamicMeshes.push({ cylinder, wire: wireCylinder, ring })
   }
 }
 
@@ -509,6 +515,58 @@ function updateUAVs() {
     if (uav.is_conflict) {
       mesh.position.x += Math.sin(time * 15) * 1.5
       mesh.position.z += Math.cos(time * 18) * 1.5
+    }
+
+    // ── 干扰圈内 UAV 视觉效果 ──
+    if (uav.is_in_zone) {
+      // 红色警告抖动（比冲突轻微）
+      mesh.position.x += Math.sin(time * 8 + uav.id) * 0.8
+      mesh.position.z += Math.cos(time * 10 + uav.id) * 0.8
+
+      // 动态修改 body 发射颜色为红色脉冲
+      const body = mesh.children[0] as THREE.Mesh
+      if (body && (body as any).material?.emissive) {
+        const pulse = 0.5 + Math.sin(time * 6) * 0.5
+        ;(body.material as THREE.MeshPhysicalMaterial).emissive.setHex(0xff3b3b)
+        ;(body.material as THREE.MeshPhysicalMaterial).emissiveIntensity = 0.5 + pulse * 0.5
+      }
+
+      // 显示/更新 EMI 警告标签
+      if (!mesh.userData.emiLabel) {
+        const emiLabel = createTextSprite('⚠ EMI', '#ff3b3b')
+        emiLabel.position.set(0, 16, 0)
+        emiLabel.scale.set(16, 8, 1)
+        mesh.add(emiLabel)
+        mesh.userData.emiLabel = emiLabel
+      }
+      mesh.userData.emiLabel.visible = true
+      // Pulse the label
+      const labelScale = 1 + Math.sin(time * 4) * 0.15
+      mesh.userData.emiLabel.scale.set(16 * labelScale, 8 * labelScale, 1)
+
+      // Glow light pulsing red
+      const glow = mesh.children.find((c: any) => c instanceof THREE.PointLight) as THREE.PointLight
+      if (glow) {
+        glow.color.setHex(0xff3b3b)
+        glow.intensity = 0.5 + Math.sin(time * 5) * 0.3
+      }
+    } else {
+      // Restore normal state
+      const body = mesh.children[0] as THREE.Mesh
+      if (body && (body as any).material?.emissive) {
+        const origColor = channelColors[uav.channel] || 0x00f2ff
+        ;(body.material as THREE.MeshPhysicalMaterial).emissive.setHex(origColor)
+        ;(body.material as THREE.MeshPhysicalMaterial).emissiveIntensity = 0.5
+      }
+      if (mesh.userData.emiLabel) {
+        mesh.userData.emiLabel.visible = false
+      }
+      // Restore glow
+      const glow = mesh.children.find((c: any) => c instanceof THREE.PointLight) as THREE.PointLight
+      if (glow) {
+        glow.color.setHex(channelColors[uav.channel] || 0x00f2ff)
+        glow.intensity = 0.5
+      }
     }
 
     // Rotate propellers
@@ -769,6 +827,18 @@ function animate() {
   // Slow star rotation for parallax
   if (starField) {
     starField.rotation.y = time * 0.003
+  }
+
+  // ── 干扰圈动态动画 ──
+  for (const zm of zoneDynamicMeshes) {
+    // Wireframe slow rotation
+    zm.wire.rotation.y = time * 0.3
+    // Core opacity breathing
+    const breathe = 0.03 + Math.sin(time * 2) * 0.03
+    ;(zm.cylinder.material as THREE.MeshBasicMaterial).opacity = breathe
+    // Ring pulsing opacity
+    const ringPulse = 0.2 + Math.sin(time * 3) * 0.15
+    ;(zm.ring.material as THREE.MeshBasicMaterial).opacity = ringPulse
   }
 
   if (composer) {
