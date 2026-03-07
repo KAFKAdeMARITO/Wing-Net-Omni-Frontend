@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, inject, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, inject, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import * as THREE from 'three'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import type { UAVNode, BuildingBlock } from '../types'
-import { activeScene, sceneVersion } from '../composables/useScene'
+import { activeScene, sceneVersion, missionWaypoints, interactionState } from '../composables/useScene'
 
 // Hover tooltip state
 const hoverInfo = ref<{ show: boolean; x: number; y: number; uav: UAVNode | null }>({
@@ -43,6 +43,27 @@ let envParticles: THREE.Points
 
 // Interference zone dynamic meshes (for animate pulse)
 let zoneDynamicMeshes: { cylinder: THREE.Mesh; wire: THREE.Mesh; ring: THREE.Mesh }[] = []
+
+// Reusable geometries/materials for performance
+const linkMat = new THREE.LineBasicMaterial({ transparent: true, vertexColors: true })
+const flowPointMat = new THREE.PointsMaterial({
+  size: 1.5,
+  transparent: true,
+  opacity: 0.6,
+  sizeAttenuation: true,
+  vertexColors: true
+})
+let linkSegmentsMesh: THREE.LineSegments | null = null
+let flowPointsMesh: THREE.Points | null = null
+
+// Waypoint markers
+let startMarkerRaw: THREE.Group | null = null
+let targetMarkerRaw: THREE.Group | null = null
+
+// Topology Link Animation state
+let previousFrameLinks = new Set<string>()
+const brokenLinkParticles: { obj: THREE.Group; timeRemaining: number }[] = []
+let brokenLinksGroup: THREE.Group | null = null
 
 // Mouse
 let raycaster = new THREE.Raycaster()
@@ -137,9 +158,20 @@ function initScene() {
 
   // Groups for dynamic objects
   linkLines = new THREE.Group()
-  scene.add(linkLines)
-  trailGroup = new THREE.Group()
   scene.add(trailGroup)
+  brokenLinksGroup = new THREE.Group()
+  scene.add(brokenLinksGroup)
+
+  // Initialize unified link meshes
+  const linkGeo = new THREE.BufferGeometry()
+  linkSegmentsMesh = new THREE.LineSegments(linkGeo, linkMat)
+  linkSegmentsMesh.frustumCulled = false
+  scene.add(linkSegmentsMesh)
+
+  const flowGeo = new THREE.BufferGeometry()
+  flowPointsMesh = new THREE.Points(flowGeo, flowPointMat)
+  flowPointsMesh.frustumCulled = false
+  scene.add(flowPointsMesh)
 
   // Events
   renderer.domElement.addEventListener('mousedown', onMouseDown)
@@ -232,6 +264,14 @@ function createGround() {
   const borderLine = new THREE.LineSegments(borderGeo, borderMat)
   borderLine.position.set(GRID / 2, 0, GRID / 2)
   scene.add(borderLine)
+  
+  // Set user data for ground to identify it in raycast
+  ground.userData.isGround = true
+
+  // Broken links particle group
+  brokenLinksGroup = new THREE.Group()
+  brokenLinksGroup.name = 'brokenLinksGroup'
+  scene.add(brokenLinksGroup)
 }
 
 function createBuildings() {
@@ -442,8 +482,8 @@ function createUAVMesh(uav: UAVNode): THREE.Group {
   label.scale.set(12, 6, 1)
   group.add(label)
 
-  // Interference Sphere (Hidden by default, radius 40 = 80m diameter threshold)
-  const sphereGeo = new THREE.SphereGeometry(40, 32, 32)
+  // Interference Sphere (Hidden by default, radius 17.5 = 35m diameter threshold)
+  const sphereGeo = new THREE.SphereGeometry(17.5, 32, 32)
   const sphereMat = new THREE.MeshBasicMaterial({
     color: color,
     transparent: true,
@@ -465,8 +505,37 @@ function createUAVMesh(uav: UAVNode): THREE.Group {
   intCore.visible = false
   group.add(intCore)
 
+  // 1. Dynamic Channel Aura
+  const auraGeo = new THREE.RingGeometry(5, 7, 32)
+  const auraMat = new THREE.MeshBasicMaterial({
+    color: color,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.6,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  })
+  const channelAura = new THREE.Mesh(auraGeo, auraMat)
+  channelAura.rotation.x = -Math.PI / 2
+  channelAura.position.y = -3
+  group.add(channelAura)
+
+  // 2. Adaptive Power Shield
+  const shieldGeo = new THREE.SphereGeometry(6, 32, 32)
+  const shieldMat = new THREE.MeshBasicMaterial({
+    color: color,
+    transparent: true,
+    opacity: 0.1,
+    wireframe: true,
+    blending: THREE.AdditiveBlending
+  })
+  const powerShield = new THREE.Mesh(shieldGeo, shieldMat)
+  group.add(powerShield)
+
   group.userData.uavId = uav.id
   group.userData.interferenceMeshes = [intSphere, intCore]
+  group.userData.channelAura = channelAura
+  group.userData.powerShield = powerShield
   return group
 }
 
@@ -569,6 +638,38 @@ function updateUAVs() {
       }
     }
 
+    // ── 1. 动态信道光环特效 ──
+    if (mesh.userData.channelAura) {
+      const aura = mesh.userData.channelAura as THREE.Mesh
+      const chColor = channelColors[uav.channel] || 0x00f2ff
+      ;(aura.material as THREE.MeshBasicMaterial).color.setHex(chColor)
+      
+      // 添加呼吸缩放效果
+      const pulse = 1 + Math.sin(time * 6 + uav.id) * 0.2
+      aura.scale.set(pulse, pulse, pulse)
+    }
+
+    // ── 2. 自适应功率护盾特效 ──
+    if (mesh.userData.powerShield) {
+      const shield = mesh.userData.powerShield as THREE.Mesh
+      const power = uav.power || 20
+      
+      // 随着 power (20 -> 26+) 增强护盾厚度和大小
+      // 正常 20 时，scale = 1.0；达到界限 26 时，scale 显著撑大雷达波
+      let sScale = 1.0 + Math.max(0, (power - 20) * 0.15)
+      shield.scale.set(sScale, sScale, sScale)
+
+      const shMat = shield.material as THREE.MeshBasicMaterial
+      if (power >= 25) {
+        // 极限功率穿透，瞬间爆红
+        shMat.color.setHex(0xff3b3b)
+        shMat.opacity = 0.35 + Math.sin(time * 15) * 0.15 // 急促闪烁
+      } else {
+        shMat.color.setHex(channelColors[uav.channel] || 0x00f2ff)
+        shMat.opacity = 0.1 + Math.max(0, (power - 20) * 0.05)
+      }
+    }
+
     // Rotate propellers
     mesh.children.forEach((child) => {
       if ((child as THREE.Mesh).userData?.isPropeller) {
@@ -576,39 +677,87 @@ function updateUAVs() {
       }
     })
 
-    // Slight body tilt based on movement
-    mesh.rotation.z = Math.sin(time + uav.id) * 0.05
-    mesh.rotation.x = Math.cos(time * 0.7 + uav.id) * 0.03
+    // Dynamic Orientation based on velocity
+    if (prev) {
+      const vx = uav.x - prev.x;
+      const vz = uav.y - prev.z;
+      const speed = Math.sqrt(vx * vx + vz * vz);
+      
+      if (speed > 0.05) {
+        // Change rotation order so Yaw (Y) is applied first, then Pitch (X), then Bank (Z)
+        mesh.rotation.order = 'YXZ';
+        
+        let targetYaw = Math.atan2(vx, vz);
+        let currYaw = mesh.userData.yaw || 0;
+        let diff = targetYaw - currYaw;
+        // Normalize diff to [-PI, PI]
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        
+        // Smooth yaw rotation
+        currYaw += diff * 0.1;
+        mesh.userData.yaw = currYaw;
+        mesh.rotation.y = currYaw;
+        
+        // Calculate turning rate for Bank (Roll)
+        let turnRate = diff * 0.1;
+        const targetRoll = -turnRate * 12; // Bank into the turn (压弯倾斜)
+        
+        // Calculate pitch based on speed
+        const targetPitch = Math.min(speed * 0.05, 0.4); // Pitch forward when flying
+        
+        // Smoothly apply pitch and roll
+        mesh.rotation.x += (targetPitch - mesh.rotation.x) * 0.1;
+        mesh.rotation.z += (targetRoll - mesh.rotation.z) * 0.1;
+      } else {
+        // Hovering states
+        mesh.rotation.z += (Math.sin(time + uav.id) * 0.05 - mesh.rotation.z) * 0.1;
+        mesh.rotation.x += (Math.cos(time * 0.7 + uav.id) * 0.03 - mesh.rotation.x) * 0.1;
+      }
+    } else {
+      mesh.rotation.z = Math.sin(time + uav.id) * 0.05
+      mesh.rotation.x = Math.cos(time * 0.7 + uav.id) * 0.03
+    }
 
     // Update Flight Trails
     if (!uavTrails.has(uav.id)) uavTrails.set(uav.id, [])
     const trail = uavTrails.get(uav.id)!
-    // Add current position to trail
     trail.push(new THREE.Vector3(pos.x, pos.y, pos.z))
-    if (trail.length > 25) trail.shift() // keep last 25 frames
+    if (trail.length > 25) trail.shift()
 
     let line = trailLines.get(uav.id)
     if (!line) {
-      const geo = new THREE.BufferGeometry().setFromPoints(trail)
+      // Create a geometry with a fixed buffer size (25 points)
+      const geo = new THREE.BufferGeometry()
+      const posArr = new Float32Array(25 * 3)
+      geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3))
+      
       const mat = new THREE.LineBasicMaterial({
         color: channelHexStr[uav.channel] || 0x00f2ff,
         transparent: true,
-        opacity: 0.6,
-        linewidth: 2
+        opacity: 0.6
       })
       line = new THREE.Line(geo, mat)
       trailLines.set(uav.id, line)
       trailGroup.add(line)
-    } else {
-      line.geometry.setFromPoints(trail)
-      // Fade out line if UAV is gone
-      line.visible = true
     }
+
+    // Update trail geometry without disposing
+    const posAttr = line.geometry.attributes.position
+    const arr = posAttr.array as Float32Array
+    for (let i = 0; i < trail.length; i++) {
+      arr[i * 3] = trail[i].x
+      arr[i * 3 + 1] = trail[i].y
+      arr[i * 3 + 2] = trail[i].z
+    }
+    line.geometry.setDrawRange(0, trail.length)
+    posAttr.needsUpdate = true
+    line.visible = true
   }
 
-  // Cleanup old trails for UAVs that no longer exist
+  // Cleanup old trails
   for (const [id, line] of trailLines.entries()) {
-    if (!uavs.find(u => u.id === id)) {
+    if (!uavs.some(u => u.id === id)) {
       trailGroup.remove(line)
       line.geometry.dispose()
       ;(line.material as THREE.Material).dispose()
@@ -619,94 +768,171 @@ function updateUAVs() {
 }
 
 function updateLinks() {
-  // Clear old links and data flow points
-  while (linkLines.children.length > 0) {
-    const child = linkLines.children[0]
-    linkLines.remove(child)
-    if ((child as THREE.Object3D & { geometry?: THREE.BufferGeometry }).geometry) {
-      (child as THREE.Object3D & { geometry?: THREE.BufferGeometry }).geometry!.dispose()
+  if (!frame.value || !frame.value.uav_nodes || !linkSegmentsMesh || !flowPointsMesh) return
+  const uavs: UAVNode[] = frame.value.uav_nodes
+  const time = clock.getElapsedTime()
+  const selId = selectedUAVId?.value?.id ?? null
+
+  const currentLinkIds = new Set<string>()
+  const connectedPairs: [UAVNode, UAVNode][] = []
+
+  // 1. Dynamic Parsing (Faster caching)
+  const uavMap = new Map<number, UAVNode>()
+  uavs.forEach(u => uavMap.set(u.id, u))
+
+  if (frame.value.links && frame.value.links.length > 0) {
+    for (let i = 0; i < frame.value.links.length; i++) {
+      const linkStr = frame.value.links[i]
+      const matches = linkStr.match(/\d+/g)
+      if (matches && matches.length >= 2) {
+        const idA = parseInt(matches[0])
+        const idB = parseInt(matches[1])
+        const a = uavMap.get(idA)
+        const b = uavMap.get(idB)
+        if (a && b) {
+          connectedPairs.push([a, b])
+          const linkId = idA < idB ? `${idA}-${idB}` : `${idB}-${idA}`
+          currentLinkIds.add(linkId)
+        }
+      }
+    }
+  } else {
+    // Distance-based (Distance check is O(N^2), but N=15 is small)
+    for (let i = 0; i < uavs.length; i++) {
+      for (let j = i + 1; j < uavs.length; j++) {
+        const a = uavs[i], b = uavs[j]
+        if (Math.hypot(a.x - b.x, a.y - b.y) <= 120) {
+          connectedPairs.push([a, b])
+          const linkId = `${a.id}-${b.id}`
+          currentLinkIds.add(linkId)
+        }
+      }
     }
   }
 
-  if (!frame.value || !frame.value.uav_nodes) return
-  const uavs: UAVNode[] = frame.value.uav_nodes
-  const time = clock.getElapsedTime()
+  // 2. Broken sparks
+  for (const prevLink of previousFrameLinks) {
+    if (!currentLinkIds.has(prevLink)) {
+      const parts = prevLink.split('-')
+      const posA = interpPositions.get(parseInt(parts[0]))
+      const posB = interpPositions.get(parseInt(parts[1]))
+      if (posA && posB) createBrokenSpark(posA, posB)
+    }
+  }
+  previousFrameLinks = currentLinkIds
 
-  // Get selected UAV ID for link highlighting
-  const selId = selectedUAVId?.value?.id ?? null
+  // 3. Update unified Link Segments
+  const positions: number[] = []
+  const colors: number[] = []
+  const flowPositions: number[] = []
+  const flowColors: number[] = []
 
-  for (let i = 0; i < uavs.length; i++) {
-    for (let j = i + 1; j < uavs.length; j++) {
-      const a = uavs[i], b = uavs[j]
-      const dx = a.x - b.x, dy = a.y - b.y
-      if (Math.sqrt(dx * dx + dy * dy) > 120) continue
+  const colorCache = new THREE.Color()
 
-      const posA = interpPositions.get(a.id) || { x: a.x, y: 40, z: a.y }
-      const posB = interpPositions.get(b.id) || { x: b.x, y: 40, z: b.y }
+  for (let i = 0; i < connectedPairs.length; i++) {
+    const [a, b] = connectedPairs[i]
+    const posA = interpPositions.get(a.id) || { x: a.x, y: 40, z: a.y }
+    const posB = interpPositions.get(b.id) || { x: b.x, y: 40, z: b.y }
 
-      const points = [
-        new THREE.Vector3(posA.x, posA.y, posA.z),
-        new THREE.Vector3(posB.x, posB.y, posB.z),
-      ]
-      const geo = new THREE.BufferGeometry().setFromPoints(points)
+    let baseColor = 0x00f2ff
+    let opacity = 0.15
 
-      let color = 0x00f2ff
-      let opacity = 0.15
+    if (a.is_conflict || b.is_conflict) {
+      baseColor = 0xff3b3b
+      opacity = 0.4 + Math.sin(time * 10) * 0.3
+    } else if (checkNLOSDynamic(a.x, a.y) || checkNLOSDynamic(b.x, b.y)) {
+      baseColor = 0xffaa00
+      opacity = 0.3
+    }
 
-      if (a.is_conflict || b.is_conflict) {
-        color = 0xff3b3b
-        opacity = 0.4 + Math.sin(time * 10) * 0.3
-      } else {
-        const aNlos = checkNLOSDynamic(a.x, a.y)
-        const bNlos = checkNLOSDynamic(b.x, b.y)
-        if (aNlos || bNlos) {
-          color = 0xffaa00
-          opacity = 0.3
-        }
+    if (selId !== null) {
+      if (a.id === selId || b.id === selId) opacity = Math.min(opacity * 2.5, 0.9)
+      else opacity *= 0.15
+    }
+
+    colorCache.setHex(baseColor)
+    
+    // Add to static segments
+    positions.push(posA.x, posA.y, posA.z, posB.x, posB.y, posB.z)
+    colors.push(colorCache.r, colorCache.g, colorCache.b, opacity)
+    colors.push(colorCache.r, colorCache.g, colorCache.b, opacity)
+
+    // Add to flow points
+    if (opacity > 0.05) {
+      const dir = b.id > a.id ? 1 : -1
+      const speed = (a.is_conflict || b.is_conflict) ? 0.5 : 2.5
+      for (let k = 0; k < 3; k++) {
+        const t = (time * speed + k * 0.33) % 1.0
+        const actualT = dir === 1 ? t : 1 - t
+        flowPositions.push(
+          posA.x + (posB.x - posA.x) * actualT,
+          posA.y + (posB.y - posA.y) * actualT,
+          posA.z + (posB.z - posA.z) * actualT
+        )
+        flowColors.push(colorCache.r, colorCache.g, colorCache.b, opacity * 1.5)
       }
+    }
+  }
 
-      // Link focus highlighting: dim links not connected to the selected UAV
-      if (selId !== null) {
-        if (a.id === selId || b.id === selId) {
-          opacity = Math.min(opacity * 2.5, 0.9) // Brighten connected links
-        } else {
-          opacity *= 0.15 // Dim unrelated links
-        }
-      }
+  // Update geometry attributes with minimal allocation
+  const linkGeo = linkSegmentsMesh.geometry
+  if (!linkGeo.attributes.position || linkGeo.attributes.position.count < positions.length / 3) {
+    linkGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    linkGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 4))
+  } else {
+    linkGeo.attributes.position.copyArray(new Float32Array(positions))
+    linkGeo.attributes.color.copyArray(new Float32Array(colors))
+    linkGeo.setDrawRange(0, positions.length / 3)
+    linkGeo.attributes.position.needsUpdate = true
+    linkGeo.attributes.color.needsUpdate = true
+  }
 
-      const mat = new THREE.LineBasicMaterial({
-        color, transparent: true, opacity,
-      })
-      const line = new THREE.Line(geo, mat)
-      linkLines.add(line)
+  const fGeo = flowPointsMesh.geometry
+  if (!fGeo.attributes.position || fGeo.attributes.position.count < flowPositions.length / 3) {
+    fGeo.setAttribute('position', new THREE.Float32BufferAttribute(flowPositions, 3))
+    fGeo.setAttribute('color', new THREE.Float32BufferAttribute(flowColors, 4))
+  } else {
+    fGeo.attributes.position.copyArray(new Float32Array(flowPositions))
+    fGeo.attributes.color.copyArray(new Float32Array(flowColors))
+    fGeo.setDrawRange(0, flowPositions.length / 3)
+    fGeo.attributes.position.needsUpdate = true
+    fGeo.attributes.color.needsUpdate = true
+  }
+}
 
-      // Data Flow Animation
-      if (opacity > 0.05) {
-        const dir = b.id > a.id ? 1 : -1
-        const speed = (a.is_conflict || b.is_conflict) ? 0.5 : 2.5
-        
-        const flowPoints = []
-        for (let k = 0; k < 3; k++) {
-          const t = (time * speed + k * 0.33) % 1.0
-          const actualT = dir === 1 ? t : 1 - t
-          
-          const px = posA.x + (posB.x - posA.x) * actualT
-          const py = posA.y + (posB.y - posA.y) * actualT
-          const pz = posA.z + (posB.z - posA.z) * actualT
-          flowPoints.push(new THREE.Vector3(px, py, pz))
-        }
-        
-        const flowGeo = new THREE.BufferGeometry().setFromPoints(flowPoints)
-        const flowMat = new THREE.PointsMaterial({
-          color: color,
-          size: 1.5,
-          transparent: true,
-          opacity: Math.min(opacity * 1.5, 0.8),
-          sizeAttenuation: true
-        })
-        const flowMesh = new THREE.Points(flowGeo, flowMat)
-        linkLines.add(flowMesh)
-      }
+function createBrokenSpark(posA: {x:number, y:number, z:number}, posB: {x:number, y:number, z:number}) {
+  const cx = (posA.x + posB.x) / 2
+  const cy = (posA.y + posB.y) / 2
+  const cz = (posA.z + posB.z) / 2
+
+  const grp = new THREE.Group()
+  grp.position.set(cx, cy, cz)
+
+  // Blinking Red Light
+  const light = new THREE.PointLight(0xff3b3b, 8.0, 40)
+  grp.add(light)
+
+  if (brokenLinksGroup) {
+    brokenLinksGroup.add(grp)
+    brokenLinkParticles.push({ obj: grp, timeRemaining: 1.0 }) // Live for 1.0 seconds
+  }
+}
+
+function updateBrokenSparks(delta: number) {
+  if (!brokenLinksGroup) return
+  for (let i = brokenLinkParticles.length - 1; i >= 0; i--) {
+    const p = brokenLinkParticles[i]
+    p.timeRemaining -= delta
+    
+    // Light Flicker: High frequency
+    const light = p.obj.children.find((c: any) => c instanceof THREE.PointLight) as THREE.PointLight
+    if (light) {
+      light.intensity = Math.max(0, p.timeRemaining * 10.0 * (0.2 + Math.random() * 0.8))
+    }
+
+    if (p.timeRemaining <= 0) {
+      if (brokenLinksGroup) brokenLinksGroup.remove(p.obj)
+      brokenLinkParticles.splice(i, 1)
     }
   }
 }
@@ -749,14 +975,31 @@ function onMouseMove(e: MouseEvent) {
     return
   }
 
+  if (!renderer) return
+  const rendererDom = renderer.domElement
+
+  if (selectedUAVId?.value) {
+    hoverInfo.value.show = false
+    return
+  }
+
+  // Picker mode cursor
+  if (interactionState.mode !== 'none') {
+    rendererDom.style.cursor = 'crosshair'
+    hoverInfo.value.show = false
+    return
+  }
+
   // Hover detection for tooltip
-  if (!frame.value || !renderer) return
+  if (!frame.value) return
   const rect = renderer.domElement.getBoundingClientRect()
   mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
   mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
   raycaster.setFromCamera(mouse, camera)
   const meshes = Array.from(uavMeshes.values())
   const intersects = raycaster.intersectObjects(meshes, true)
+
+  hoverInfo.value.show = false
 
   if (intersects.length > 0) {
     let obj: THREE.Object3D | null = intersects[0].object
@@ -786,12 +1029,31 @@ function onWheel(e: WheelEvent) {
 }
 
 function onClick(e: MouseEvent) {
-  if (!frame.value) return
+  if (!renderer) return
   const rect = renderer.domElement.getBoundingClientRect()
   mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
   mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
-
   raycaster.setFromCamera(mouse, camera)
+
+  // Handled waypoint picker mode
+  if (interactionState.mode !== 'none') {
+    const groundIntersect = raycaster.intersectObjects(scene.children, true).find(i => i.object.userData.isGround)
+    if (groundIntersect) {
+      const pt = groundIntersect.point
+      const coords = `${Math.round(pt.x)},${Math.round(pt.z)},30`
+      if (interactionState.mode === 'setStart') {
+        missionWaypoints.start = coords
+      } else {
+        missionWaypoints.target = coords
+      }
+      interactionState.mode = 'none'
+      renderer.domElement.style.cursor = 'grab'
+      updateWaypointMarkers()
+    }
+    return
+  }
+
+  if (!frame.value) return
   const meshes = Array.from(uavMeshes.values())
   const intersects = raycaster.intersectObjects(meshes, true)
 
@@ -809,8 +1071,10 @@ function onClick(e: MouseEvent) {
 function animate() {
   animId = requestAnimationFrame(animate)
   const time = clock.getElapsedTime()
+  const delta = clock.getDelta() // Using internal delta might skip if not polled carefully, but rough delta is 0.016
   updateUAVs()
   updateLinks()
+  updateBrokenSparks(0.016)
 
   // Animate environment particles (gentle float)
   if (envParticles) {
@@ -879,7 +1143,153 @@ function rebuildSceneObjects() {
   }
   createBuildings()
   createInterferenceZones()
+  updateWaypointMarkers()
 }
+
+function updateWaypointMarkers() {
+  if (startMarkerRaw) { sceneGroup.remove(startMarkerRaw); startMarkerRaw = null }
+  if (targetMarkerRaw) { sceneGroup.remove(targetMarkerRaw); targetMarkerRaw = null }
+
+  startMarkerRaw = createWaypointMarker('START\n' + missionWaypoints.start, 0x00ff88)
+  const startCoords = missionWaypoints.start.split(',').map(Number)
+  if (startCoords.length >= 2) startMarkerRaw.position.set(startCoords[0], 0, startCoords[1])
+  sceneGroup.add(startMarkerRaw)
+
+  targetMarkerRaw = createWaypointMarker('TARGET\n' + missionWaypoints.target, 0xffaa00)
+  const targetCoords = missionWaypoints.target.split(',').map(Number)
+  if (targetCoords.length >= 2) targetMarkerRaw.position.set(targetCoords[0], 0, targetCoords[1])
+  sceneGroup.add(targetMarkerRaw)
+}
+
+function createWaypointMarker(text: string, color: number) {
+  const group = new THREE.Group()
+  // Base ring
+  const ringGeo = new THREE.RingGeometry(8, 10, 32)
+  const ringMat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: 0.8 })
+  const ring = new THREE.Mesh(ringGeo, ringMat)
+  ring.rotation.x = -Math.PI / 2
+  ring.position.y = 1
+  group.add(ring)
+  
+  // Beam
+  const beamGeo = new THREE.CylinderGeometry(1, 1, 80, 16)
+  const beamMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending })
+  const beam = new THREE.Mesh(beamGeo, beamMat)
+  beam.position.y = 40
+  group.add(beam)
+
+  // Label
+  const colorStr = '#' + color.toString(16).padStart(6, '0')
+  const label = createTextSprite(text, colorStr)
+  label.position.y = 85
+  label.scale.set(40, 20, 1)
+  group.add(label)
+
+  return group
+}
+
+watch(missionWaypoints, () => {
+  updateWaypointMarkers()
+}, { deep: true })
+
+watch(() => selectedUAVId?.value, (val) => {
+  if (val) {
+    hoverInfo.value.show = false
+  }
+})
+
+// ── 终端日志系统分析逻辑 ──
+interface TerminalLogObj {
+  id: number
+  time: string
+  level: string
+  msg: string
+}
+const terminalLogs = ref<TerminalLogObj[]>([])
+const terminalScrollRef = ref<HTMLDivElement | null>(null)
+let logIdCounter = 0
+
+function addTerminalLog(level: string, msg: string, timeTick: number) {
+  const timeStr = `[${(timeTick * 0.1).toFixed(1)}s]`
+  terminalLogs.value.push({ id: logIdCounter++, time: timeStr, level, msg })
+  if (terminalLogs.value.length > 100) terminalLogs.value.shift()
+  nextTick(() => {
+    if (terminalScrollRef.value) {
+      terminalScrollRef.value.scrollTop = terminalScrollRef.value.scrollHeight
+    }
+  })
+}
+
+// 状态追踪器 (用于比较帧间变化)
+let lastUavChannels: Record<number, number> = {}
+let lastConnectivity = -1
+let lastTotalPdr = -1
+let systemStartedLogged = false
+
+watch(() => engine?.currentTick?.value, (val) => {
+  if (val === 0) systemStartedLogged = false // 归零时重置标志
+})
+
+watch(frame, (newFrame) => {
+  if (!newFrame) return
+  const tick = newFrame.tick
+
+  // 1. 系统启动日志
+  if (tick === 0 && !systemStartedLogged) {
+    terminalLogs.value = [] // clear logs
+    addTerminalLog('SYSTEM', 'Wing-Net Omni 物理核心已激活.', tick)
+    addTerminalLog('ENV', `成功加载数字高程模型，约束区(大厦)数量: ${activeScene.buildings.length}.`, tick)
+    addTerminalLog('SWARM', `蜂群已部署，当前阵型: V字形，总规模: ${newFrame.uav_nodes.length}架.`, tick)
+    addTerminalLog('AI', `分布式图着色资源分配引擎 [AI Dynamic] 挂载成功.`, tick)
+    systemStartedLogged = true
+    
+    lastUavChannels = {}
+    lastConnectivity = -1
+    lastTotalPdr = -1
+  }
+
+  if (tick > 0 && newFrame.uav_nodes) {
+    // 2. AI 信道博弈感知
+    for (const uav of newFrame.uav_nodes) {
+      const prevCh = lastUavChannels[uav.id]
+      if (prevCh !== undefined && prevCh !== uav.channel) {
+        addTerminalLog('AI-CORE', `警告：UAV-${String(uav.id).padStart(2,'0')} 检测到局部强干扰.`, tick)
+        addTerminalLog('AI-CORE', `执行动态图着色跳频：UAV-${String(uav.id).padStart(2,'0')} 信道从 CH${prevCh+1} -> CH${uav.channel+1}.`, tick)
+        addTerminalLog('AI-CORE', `UAV-${String(uav.id).padStart(2,'0')} 发射功率自动补偿至 22.5 dBm 以穿透障碍物.`, tick)
+      }
+      lastUavChannels[uav.id] = uav.channel
+    }
+
+    // 3. 拓扑撕裂与自愈
+    const currentConn = newFrame.topology?.connectivity || 0
+    if (lastConnectivity !== -1) {
+      if (currentConn < lastConnectivity - 0.1 && currentConn <= 0.6) {
+        addTerminalLog('NETWORK', `⚠️ 拓扑断层：骨干链路因建筑遮挡断开.`, tick)
+        addTerminalLog('NETWORK', `🚨 网络连通率跌破警戒线：当前活跃链路急剧下降.`, tick)
+      } else if (currentConn > lastConnectivity + 0.1 && currentConn > 0.8) {
+        addTerminalLog('NETWORK', `🟢 拓扑自愈修复：成功建立中继链路，网络恢复稳健.`, tick)
+      }
+    }
+    lastConnectivity = currentConn
+
+    // 4. 重大 QoS 报文预警
+    const currentPdr = newFrame.QoS?.total_pdr || 0
+    const delay = newFrame.QoS?.p99_latency_ms || 0
+    if (lastTotalPdr !== -1) {
+      if (currentPdr < 0.85 && lastTotalPdr >= 0.85) {
+        addTerminalLog('QoS', `PDR 包到达率骤降，当前全网平均: ${(currentPdr * 100).toFixed(1)}%.`, tick)
+      }
+      // 防节流：每 10 tick 且时延离谱时触发
+      if (delay > 40 && tick % 10 === 0) {
+        const worstUav = newFrame.uav_nodes.reduce((prev: any, curr: any) => (prev.delay > curr.delay) ? prev : curr)
+        if (worstUav && worstUav.delay > 40) {
+          addTerminalLog('QoS', `UAV-${String(worstUav.id).padStart(2,'0')} 发生严重拥塞，端到端时延突破 ${worstUav.delay.toFixed(1)}ms.`, tick)
+        }
+      }
+    }
+    lastTotalPdr = currentPdr
+  }
+})
 
 onMounted(() => {
   initScene()
@@ -904,6 +1314,25 @@ onBeforeUnmount(() => {
   <div ref="containerRef" class="sandbox-container glass-panel">
     <div class="sandbox-label">TACTICAL OVERVIEW — 3D</div>
     <div class="camera-hint">🖱 拖拽旋转 | Shift+拖拽平移 | 滚轮缩放 | 点击无人机查看详情</div>
+
+    <!-- Sandbox Terminal Logger -->
+    <div class="sandbox-terminal">
+      <div class="terminal-header">
+        <span class="terminal-title">WNO_SYS_TERMINAL_V6.0</span>
+        <span class="terminal-dots">...</span>
+      </div>
+      <div class="terminal-body" ref="terminalScrollRef">
+        <div v-for="log in terminalLogs" :key="log.id" class="log-entry">
+          <span class="log-time">{{ log.time }}</span>
+          <span class="log-level" :class="log.level.replace('-', '').toLowerCase()">[{{ log.level }}]</span>
+          <span class="log-msg" :class="{
+             warning: log.msg.includes('警告') || log.msg.includes('断层') || log.msg.includes('骤降') || log.msg.includes('拥塞'),
+             danger: log.msg.includes('跌破') || log.msg.includes('严重'),
+             success: log.msg.includes('成功') || log.msg.includes('恢复')
+          }">{{ log.msg }}</span>
+        </div>
+      </div>
+    </div>
 
     <!-- Hover Tooltip -->
     <Teleport to="body">
@@ -978,6 +1407,106 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 10;
 }
+
+/* Terminal Overlay Styles */
+.sandbox-terminal {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  width: 480px;
+  max-height: 240px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(4, 7, 20, 0.75);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(0, 242, 255, 0.15);
+  border-radius: 6px;
+  z-index: 20;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+  pointer-events: auto;
+}
+
+.terminal-header {
+  padding: 4px 10px;
+  background: rgba(0, 242, 255, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(0, 242, 255, 0.2);
+}
+
+.terminal-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: #00f2ff;
+  letter-spacing: 1px;
+}
+
+.terminal-dots {
+  color: #00f2ff;
+  letter-spacing: 2px;
+}
+
+.terminal-body {
+  flex: 1;
+  padding: 8px 10px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  color: #cdd6f4;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.terminal-body::-webkit-scrollbar {
+  width: 4px;
+}
+.terminal-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 242, 255, 0.3);
+  border-radius: 2px;
+}
+
+.log-entry {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  word-break: break-all;
+  animation: log-in 0.2s ease-out;
+}
+
+@keyframes log-in {
+  from { opacity: 0; transform: translateX(10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.log-time {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.log-level {
+  font-weight: bold;
+  flex-shrink: 0;
+  min-width: 80px;
+}
+
+.log-level.system { color: #a855f7; }
+.log-level.env { color: #00ff88; }
+.log-level.swarm { color: #00f2ff; }
+.log-level.ai { color: #facc15; }
+.log-level.aicore { color: #facc15; }
+.log-level.network { color: #ff3b3b; }
+.log-level.qos { color: #ffaa00; }
+
+.log-msg {
+  flex: 1;
+}
+
+.log-msg.warning { color: #ffaa00; }
+.log-msg.danger { color: #ff3b3b; text-shadow: 0 0 6px rgba(255,59,59,0.5); font-weight: bold; }
+.log-msg.success { color: #00ff88; text-shadow: 0 0 6px rgba(0,255,136,0.3); }
 </style>
 
 <style>

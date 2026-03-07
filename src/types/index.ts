@@ -17,6 +17,8 @@ export interface UAVNode {
     power?: number        // dBm
     rate?: number
     is_in_zone?: boolean  // 是否在干扰圈内
+    interference?: number // 当前遭遇的干扰强度
+    neighbors?: number    // 邻居数量
 }
 
 /** 全局 QoS 指标 */
@@ -37,6 +39,8 @@ export interface FrameData {
         connectivity: number
     }
     conflicts: number
+    links?: string[]     // format: e.g. "Node0-Node1", or "0-1" depending on backend
+    transmissions?: any[]
 }
 
 /** 建筑物障碍定义 */

@@ -12,8 +12,22 @@ export const activeScene = reactive<SceneConfig>({
     gridSize: defaultScene.gridSize
 })
 
+// 起点和终点坐标
+export const missionWaypoints = reactive({
+    start: '0,0,30',
+    target: '500,500,30'
+})
+
+// 交互状态 (如：从 3D 沙盘点选坐标)
+export const interactionState = reactive({
+    mode: 'none' as 'none' | 'setStart' | 'setTarget'
+})
+
 // 场景版本号 — 每次修改递增，触发 3D 重建
 export const sceneVersion = ref(0)
+
+// 仿真算法策略 (static | dynamic) — 影响 QoS 的恢复效果
+export const simulationStrategy = ref<'static' | 'dynamic'>('dynamic')
 
 export function applyScene(config: SceneConfig) {
     activeScene.buildings = [...config.buildings]

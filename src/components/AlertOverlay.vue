@@ -11,36 +11,12 @@ const frame = computed(() => engine?.currentFrame?.value)
 const showFlash = ref(false)
 const shakeScreen = ref(false)
 
-// 自动检测告警条件
+// 自动检测告警条件 (已禁用全屏闪烁和震动特效)
 watch(frame, (f) => {
-  if (!f) return
-  const hasConflict = f.conflicts > 0
-  const lowConnectivity = f.topology.connectivity < 0.7
-
-  if (hasConflict || lowConnectivity) {
-    triggerAlert()
-  }
+  // 特效已根据用户要求移除
 })
 
-function triggerAlert() {
-  showFlash.value = true
-  shakeScreen.value = true
-  setTimeout(() => {
-    showFlash.value = false
-  }, 300)
-  setTimeout(() => {
-    shakeScreen.value = false
-  }, 600)
-}
-
-// 暴露全局抖动 class
-watch(shakeScreen, (val) => {
-  if (val) {
-    document.body.classList.add('screen-shake')
-  } else {
-    document.body.classList.remove('screen-shake')
-  }
-})
+// 暴露全局抖动 class (已禁用)
 </script>
 
 <template>
@@ -54,18 +30,7 @@ watch(shakeScreen, (val) => {
 </template>
 
 <style>
-/* 全局：屏幕抖动 */
-.screen-shake {
-  animation: screenShake 0.2s ease !important;
-}
-
-@keyframes screenShake {
-  0%, 100% { transform: translate(0, 0); }
-  20% { transform: translate(-3px, 2px); }
-  40% { transform: translate(3px, -2px); }
-  60% { transform: translate(-2px, -1px); }
-  80% { transform: translate(2px, 1px); }
-}
+/* 全局：屏幕抖动 (已移除) */
 </style>
 
 <style scoped>

@@ -3,7 +3,7 @@ import { inject, computed, reactive, watch, ref } from 'vue'
 import gsap from 'gsap'
 import { apiService, type SimulationConfig } from '../services/apiService'
 import { currentFormation } from '../composables/useFormation'
-import { activeScene } from '../composables/useScene'
+import { activeScene, missionWaypoints, interactionState, simulationStrategy } from '../composables/useScene'
 
 const engine = inject<any>('engine')
 const frame = computed(() => engine?.currentFrame?.value)
@@ -96,6 +96,21 @@ const healthColor = computed(() => {
   return '#ff3b3b'
 })
 
+const maxLinks = computed(() => simConfig.swarm_size * 2.5)
+const connectivityColor = computed(() => {
+  const c = display.connectivity
+  if (c >= 80) return '#00ff88'
+  if (c >= 50) return '#facc15'
+  return '#ff3b3b'
+})
+
+const connectivityMsg = computed(() => {
+  const c = display.connectivity
+  if (c >= 85) return 'MESH STABLE / 强网'
+  if (c >= 50) return 'FRAGMENTING / 重连中'
+  return 'LINK DROPPED / 孤岛'
+})
+
 // UAV list
 const uavList = computed(() => {
   if (!frame.value) return []
@@ -105,11 +120,10 @@ const uavList = computed(() => {
 const channelLabels = ['CH1', 'CH2', 'CH3']
 const channelColors = ['#00f2ff', '#a855f7', '#00ff88']
 
-// --- Simulation Controls ---
 const simConfig = reactive({
   swarm_size: 15,
   difficulty: 'Hard' as const,
-  strategy: 'dynamic' as const
+  strategy: simulationStrategy
 })
 const isSimulating = ref(false)
 
@@ -122,13 +136,16 @@ async function handleStartSim() {
       swarm_size: simConfig.swarm_size,
       difficulty: simConfig.difficulty,
       strategy: simConfig.strategy,
-      formation: currentFormation.value
+      formation: currentFormation.value,
+      start: missionWaypoints.start,
+      target: missionWaypoints.target
     }
     const resultFrames = await apiService.startSimulation(config)
     engine.loadFrames(resultFrames)
     engine.play()
-  } catch(e) {
+  } catch(e: any) {
     console.error('仿真启动失败', e)
+    alert('推演运算失败：\n' + (e.message || '无法连接到仿真引擎或内部错误'))
   } finally {
     isSimulating.value = false
   }
@@ -164,6 +181,22 @@ async function handleStartSim() {
               <option value="static">Static</option>
               <option value="dynamic">AI Dynamic</option>
             </select>
+          </div>
+        </div>
+        <div class="form-row-multi" style="margin-top: 4px;">
+          <div class="form-group">
+            <label class="waypoint-label">
+              起点 
+              <span class="picker-btn" :class="{ active: interactionState.mode === 'setStart' }" @click="interactionState.mode = interactionState.mode === 'setStart' ? 'none' : 'setStart'" title="在地图上点击选择">📍选点</span>
+            </label>
+            <input v-model="missionWaypoints.start" type="text" class="glass-select" placeholder="0,0,30" />
+          </div>
+          <div class="form-group">
+            <label class="waypoint-label">
+              终点 
+              <span class="picker-btn" :class="{ active: interactionState.mode === 'setTarget' }" @click="interactionState.mode = interactionState.mode === 'setTarget' ? 'none' : 'setTarget'" title="在地图上点击选择">🎯选点</span>
+            </label>
+            <input v-model="missionWaypoints.target" type="text" class="glass-select" placeholder="500,500,30" />
           </div>
         </div>
         <button class="glass-btn primary sim-btn" :class="{ loading: isSimulating }" @click="handleStartSim" :disabled="isSimulating">
@@ -210,10 +243,53 @@ async function handleStartSim() {
             <span class="stat-label">总吞吐</span>
             <span class="stat-value" id="m-tp">{{ throughput }}</span>
           </div>
-          <div class="metric-item">
-            <span class="stat-label">连通率</span>
-            <span class="stat-value green" id="t-conn">{{ connectivity }}%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 拓扑演化矩阵 (Topology Evolution Core) -->
+    <div class="glass-panel topo-card">
+      <div class="section-title topo-title">
+        组网拓扑矩阵
+        <span class="topo-pulse" :style="{ backgroundColor: connectivityColor }"></span>
+      </div>
+      <div class="topo-content">
+        <!-- 连通率核心环 -->
+        <div class="topo-core">
+          <svg viewBox="0 0 100 100" class="core-ring">
+            <!-- 外部旋转圈 -->
+            <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(0,242,255,0.15)" stroke-width="2" stroke-dasharray="10 4" class="spin-slow" />
+            <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="6" />
+            <!-- 数据圆环 (周长 251.2) -->
+            <circle cx="50" cy="50" r="40" fill="none"
+              :stroke="connectivityColor"
+              stroke-width="6"
+              stroke-linecap="round"
+              :stroke-dasharray="`${display.connectivity * 2.512} 251.2`"
+              transform="rotate(135 50 50)"
+              :style="{ filter: `drop-shadow(0 0 6px ${connectivityColor})`, transition: 'all 0.5s ease' }" />
+          </svg>
+          <div class="core-val" :style="{ color: connectivityColor }">
+            {{ connectivity }}<span class="pct">%</span>
           </div>
+          <div class="core-label">CONNECTIVITY</div>
+        </div>
+
+        <!-- 幸存链路能级 -->
+        <div class="topo-stats">
+          <div class="stat-row">
+            <span class="label">活跃链路存活</span>
+            <span class="val" :style="{ color: connectivityColor, textShadow: `0 0 8px ${connectivityColor}` }">{{ links }} <span class="sub">LINKS</span></span>
+          </div>
+          <!-- 光剑式动态跳动能量条 -->
+          <div class="link-power-bar-wrapper">
+            <div class="power-bar-bg">
+              <div class="power-fill" :style="{ width: `${Math.min(100, (display.links / maxLinks) * 100)}%`, background: connectivityColor, boxShadow: `0 0 12px ${connectivityColor}` }"></div>
+            </div>
+            <!-- 网格装饰 -->
+            <div class="power-grid-overlay"></div>
+          </div>
+          <div class="status-msg" :style="{ color: connectivityColor }">{{ connectivityMsg }}</div>
         </div>
       </div>
     </div>
@@ -230,13 +306,22 @@ async function handleStartSim() {
           :style="{ animationDelay: `${Number(idx) * 0.03}s` }"
         >
           <div class="uav-id">UAV-{{ String(uav.id).padStart(2, '0') }}</div>
-          <div class="uav-channel" :style="{ background: channelColors[uav.channel], boxShadow: `0 0 8px ${channelColors[uav.channel]}40` }">
-            {{ channelLabels[uav.channel] }}
+          <div class="uav-ch-tag" :style="{ color: channelColors[uav.channel] }">
+            [CH-{{ uav.channel + 1 }}]
           </div>
-          <div class="uav-power-bar">
-            <div class="power-fill" :style="{ width: `${(uav.power || 20) / 23 * 100}%`, background: channelColors[uav.channel] }"></div>
+          <div class="uav-health-bar">
+            <div class="health-fill" :style="{ 
+              width: `${(uav.pdr || 0) * 100}%`, 
+              backgroundColor: (uav.pdr || 0) > 0.8 ? '#00ff88' : (uav.pdr || 0) > 0.5 ? '#facc15' : '#ff3b3b' 
+            }"></div>
           </div>
-          <div class="uav-energy">{{ uav.energy.toFixed(0) }}%</div>
+          <div class="uav-rate-status">
+            <span class="pdr-val">{{ ((uav.pdr || 0) * 100).toFixed(0) }}%</span>
+            <span class="status-text" :style="{ color: (uav.pdr || 0) > 0.8 ? '#00ff88' : (uav.pdr || 0) > 0.5 ? '#facc15' : '#ff3b3b' }">
+              ({{ (uav.pdr || 0) > 0.8 ? '极佳' : (uav.pdr || 0) > 0.5 ? '受扰' : '异常' }})
+            </span>
+            <span class="rate-val">{{ (uav.throughput || 0).toFixed(1) }}<small>M</small></span>
+          </div>
         </div>
       </div>
     </div>
@@ -300,6 +385,34 @@ async function handleStartSim() {
 
 .glass-select:hover {
   border-color: var(--cyan);
+}
+
+.waypoint-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.picker-btn {
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 2px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid transparent;
+  transition: all 0.2s;
+  color: var(--cyan);
+}
+
+.picker-btn:hover {
+  background: rgba(0, 242, 255, 0.1);
+  border-color: var(--cyan);
+}
+
+.picker-btn.active {
+  background: var(--cyan);
+  color: #000;
+  box-shadow: 0 0 8px var(--cyan);
 }
 
 .sim-btn {
@@ -439,41 +552,216 @@ async function handleStartSim() {
 
 .uav-id {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-secondary);
-  min-width: 50px;
+  min-width: 44px;
 }
 
-.uav-channel {
+.uav-ch-tag {
   font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: bold;
+  min-width: 40px;
+}
+
+.uav-health-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 0 4px;
+}
+
+.health-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease, background-color 0.3s;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.uav-rate-status {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 75px;
+  justify-content: flex-end;
+}
+
+.pdr-val {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: bold;
+  color: #cbd5e1;
+}
+
+.status-text {
   font-size: 9px;
-  font-weight: 700;
-  color: var(--bg-deep);
-  padding: 2px 6px;
-  border-radius: 3px;
-  min-width: 32px;
+  min-width: 30px;
+}
+
+.rate-val {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: #64748b;
+  margin-left: auto;
+}
+
+.rate-val small {
+  font-size: 8px;
+  opacity: 0.6;
+}
+
+/* 拓扑演化核心组件样式 */
+.topo-card {
+  padding: 14px;
+  flex-shrink: 0;
+  border-left: 2px solid transparent;
+  transition: border-color 0.5s ease;
+}
+
+.topo-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.topo-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.topo-content {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.topo-core {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+}
+
+.core-ring {
+  width: 100%;
+  height: 100%;
+}
+
+.spin-slow {
+  transform-origin: 50px 50px;
+  animation: spin 8s linear infinite;
+}
+
+@keyframes spin {
+  100% { transform: rotate(360deg); }
+}
+
+.core-val {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 18px;
+  font-weight: bold;
+  font-family: monospace;
   text-align: center;
 }
 
-.uav-power-bar {
-  flex: 1;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.06);
+.core-val .pct {
+  font-size: 10px;
+}
+
+.core-label {
+  position: absolute;
+  top: 70%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  color: #94a3b8;
+  font-family: monospace;
+  letter-spacing: 1px;
+}
+
+.topo-stats {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.stat-row .label {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.stat-row .val {
+  font-size: 18px;
+  font-family: monospace;
+  font-weight: bold;
+}
+
+.stat-row .sub {
+  font-size: 10px;
+  color: inherit;
+  font-weight: normal;
+}
+
+.link-power-bar-wrapper {
+  position: relative;
+  width: 100%;
+  height: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255,255,255,0.1);
   border-radius: 2px;
   overflow: hidden;
 }
 
-.power-fill {
+.power-bar-bg {
+  width: 100%;
   height: 100%;
-  border-radius: 2px;
-  transition: width 0.5s ease;
 }
 
-.uav-energy {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-secondary);
-  min-width: 32px;
+.power-bar-bg .power-fill {
+  height: 100%;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.power-grid-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 8px,
+    rgba(0,0,0,0.4) 8px,
+    rgba(0,0,0,0.4) 10px
+  );
+  pointer-events: none;
+}
+
+.status-msg {
+  font-size: 10px;
+  font-family: monospace;
+  letter-spacing: 0.5px;
   text-align: right;
+  transition: color 0.3s ease;
 }
 </style>
