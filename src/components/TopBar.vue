@@ -13,8 +13,8 @@ function exitToEntry() {
 const sceneNames: Record<SceneType, string> = {
   city: '城市高楼',
   forest: '森林遮挡',
-  open: '湖泊/空旷',
-  wild: '起伏野地'
+  open: '湖泊',
+  wild: '空旷'
 }
 const sceneName = computed(() => sceneNames[currentScene.value] || '未知环境')
 const modeName = computed(() => currentAppMode.value === 'cooperative' ? '合作场景推演' : '非合作侦察对抗')
