@@ -41,8 +41,8 @@ function generateWild(): BuildingBlock[] {
 function getPresetsForScene(scene: string) {
     switch(scene) {
         case 'forest': return generateForest();
-        case 'open': return []; // 空旷场地无建筑
-        case 'wild': return generateWild();
+        case 'open': return []; // 湖泊场景无建筑
+        case 'wild': return []; // 空旷场景无任何遮挡
         case 'city': 
         default: return [...defaultBuildings];
     }

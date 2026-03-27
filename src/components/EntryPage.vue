@@ -7,8 +7,8 @@ const { setMode, setScene, currentScene } = useAppMode()
 const scenes: { id: SceneType; name: string; icon: string; desc: string }[] = [
   { id: 'city', name: '城市高楼场景', icon: '🏙️', desc: '高楼林立，多径效应显著，严重遮挡NLOS' },
   { id: 'forest', name: '森林遮挡场景', icon: '🌲', desc: '大面积植被遮挡，信号衰减与散射' },
-  { id: 'open', name: '湖泊/空旷场景', icon: '🌊', desc: '视野开阔，视距LOS通信为主，环境干扰小' },
-  { id: 'wild', name: '野地/低遮挡场景', icon: '🏜️', desc: '起伏地形，局部遮挡，中等连通难度' }
+  { id: 'open', name: '湖泊场景', icon: '🌊', desc: '水面反射与折射，视距LOS通信为主，湖面散射干扰' },
+  { id: 'wild', name: '空旷场景', icon: '🏜️', desc: '完全无遮挡环境，纯LOS视距通信，理想基准对照' }
 ]
 
 const hoverScene = ref<SceneType | null>(null)
