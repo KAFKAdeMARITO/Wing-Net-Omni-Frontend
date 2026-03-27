@@ -36,6 +36,16 @@ const isIsolated = computed(() => (props.uav.neighbors || 0) <= 1)
 const pdr = computed(() => (props.uav.pdr || 0) * 100)
 const delay = computed(() => props.uav.delay || 0)
 const throughput = computed(() => props.uav.throughput || 0)
+const dataRate = computed(() => props.uav.rate || 0)
+const sinr = computed(() => props.uav.sinr)
+const speed = computed(() => props.uav.speed || 0)
+const sinrStatus = computed(() => {
+  const value = sinr.value
+  if (value === undefined || value === null) return { color: '#94a3b8', label: '无回传' }
+  if (value >= 18) return { color: '#00ff88', label: '链路裕量高' }
+  if (value >= 10) return { color: '#facc15', label: '链路临界' }
+  return { color: '#ff3b3b', label: '抗干扰弱' }
+})
 
 // 综合链路评分逻辑 (0-100)
 // 权重: PDR(60%) + Delay(30%) + Throughput(10%)
@@ -255,6 +265,28 @@ function onClose() {
                   <span class="power-val" :class="{ surge: (uav.power || 20) > 24 }">{{ (uav.power || 20).toFixed(1) }}</span>
                   <span class="power-unit">dBm</span>
                 </div>
+              </div>
+              <div class="res-cell">
+                <div class="cell-head">链路速率</div>
+                <div class="cell-body">
+                  <span class="power-val" :style="{ color: '#a855f7' }">{{ dataRate.toFixed(1) }}</span>
+                  <span class="power-unit">Mbps</span>
+                </div>
+              </div>
+              <div class="res-cell">
+                <div class="cell-head">飞行速度</div>
+                <div class="cell-body">
+                  <span class="power-val" :style="{ color: '#00f2ff' }">{{ speed.toFixed(1) }}</span>
+                  <span class="power-unit">m/s</span>
+                </div>
+              </div>
+              <div class="res-cell">
+                <div class="cell-head">最差 SINR</div>
+                <div class="cell-body">
+                  <span class="power-val" :style="{ color: sinrStatus.color }">{{ sinr !== undefined && sinr !== null ? sinr.toFixed(1) : '—' }}</span>
+                  <span class="power-unit">dB</span>
+                </div>
+                <div class="cell-foot" :style="{ color: sinrStatus.color }">{{ sinrStatus.label }}</div>
               </div>
             </div>
 
@@ -745,6 +777,13 @@ function onClose() {
 }
 .power-unit {
   font-size: 11px; color: #64748b; font-family: var(--font-mono);
+}
+
+.cell-foot {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  letter-spacing: 1px;
+  color: #64748b;
 }
 
 /* ════════════════════════════════════════════

@@ -21,12 +21,8 @@ import { useAppMode } from './composables/useAppMode'
 const { currentAppMode } = useAppMode()
 
 const engine = usePlaybackEngine()
-// 只存 ID，selectedUAV 由 computed 从当前帧实时派生，确保卡片数据随仿真更新
 const selectedUAVId = ref<number | null>(null)
-const selectedUAV = computed<UAVNode | null>(() => {
-  if (selectedUAVId.value === null) return null
-  return engine.currentFrame.value?.uav_nodes.find(u => u.id === selectedUAVId.value) ?? null
-})
+const selectedUAV = ref<UAVNode | null>(null)
 const showAlert = ref(false)
 const showEditor = ref(false)
 const showIntro = ref(true)
@@ -110,17 +106,38 @@ function onIntroComplete() {
 }
 
 provide('engine', engine)
-provide('selectedUAV', selectedUAV)  // ComputedRef<UAVNode|null>，CenterSandbox 通过 .value?.id 读取
+provide('selectedUAVId', selectedUAVId)
+provide('selectedUAV', selectedUAV)
 provide('formation', currentFormation)
 
 // Clear simulation data when switching formation (mode) to keep a clean state
 watch(currentFormation, () => {
   engine.loadFrames([])
+  selectedUAVId.value = null
+  selectedUAV.value = null
   console.log(`[WingNet] 阵型切换，清空旧推演数据`)
 })
 
+watch(
+  () => engine.currentFrame.value,
+  (frame) => {
+    if (selectedUAVId.value === null || !frame?.uav_nodes) return
+    const latest = frame.uav_nodes.find(u => u.id === selectedUAVId.value)
+    if (latest) {
+      selectedUAV.value = latest
+    }
+  },
+  { deep: true }
+)
+
 function onSelectUAV(uav: UAVNode | null) {
   selectedUAVId.value = uav?.id ?? null
+  selectedUAV.value = uav
+}
+
+function closeSelectedUAV() {
+  selectedUAVId.value = null
+  selectedUAV.value = null
 }
 
 onMounted(async () => {
@@ -233,13 +250,11 @@ onMounted(async () => {
     <PlaybackBar :class="{ 'panel-reveal panel-reveal-5': panelsRevealed }" />
 
     <!-- 无人机详情弹窗 -->
-    <Transition name="modal">
-      <UAVDetail
-        v-if="selectedUAV"
-        :uav="selectedUAV"
-        @close="selectedUAVId = null"
-      />
-    </Transition>
+    <UAVDetail
+      v-if="selectedUAV"
+      :uav="selectedUAV"
+      @close="closeSelectedUAV"
+    />
 
     <!-- 场景编辑器 -->
     <Transition name="modal">
@@ -284,6 +299,7 @@ onMounted(async () => {
   display: flex;
   gap: 0;
   overflow: hidden;
+  min-height: 0;
   padding: 0 4px 8px; /* Reduce horizontal padding to make resizers flush */
 }
 
@@ -292,6 +308,7 @@ onMounted(async () => {
   height: 100%;
   flex-shrink: 0;
   overflow: hidden;
+  min-height: 0;
   position: relative;
   /* Smooth width transition only when NOT resizing */
   transition: width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
@@ -303,6 +320,7 @@ onMounted(async () => {
   width: 100%;
   height: 100%;
   overflow: hidden; /* Let child components handle scrolling */
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }

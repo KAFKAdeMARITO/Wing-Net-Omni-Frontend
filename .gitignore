@@ -1,2 +1,22 @@
+# node modules
 node_modules/
+
+# build output
 dist/
+
+# logs
+*.log
+
+# env files
+.env
+.env.*
+
+# OS files
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# cache
+.cache/

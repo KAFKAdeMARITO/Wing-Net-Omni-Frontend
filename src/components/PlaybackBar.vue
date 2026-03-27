@@ -7,6 +7,16 @@ const totalTicks = computed(() => engine?.totalTicks?.value ?? 1)
 const isPlaying = computed(() => engine?.isPlaying?.value ?? false)
 const speed = computed(() => engine?.playbackSpeed?.value ?? 1)
 const progress = computed(() => totalTicks.value > 1 ? (currentTick.value / (totalTicks.value - 1)) * 100 : 0)
+const currentTime = computed(() => Number(engine?.currentFrame?.value?.tick ?? 0))
+const totalTime = computed(() => {
+  const frames = engine?.frames?.value ?? []
+  const lastFrame = frames[frames.length - 1]
+  return Number(lastFrame?.tick ?? 0)
+})
+
+function fmtTime(seconds: number) {
+  return `${seconds.toFixed(1)}s`
+}
 
 function onSeekInput(e: Event) {
   const val = parseInt((e.target as HTMLInputElement).value)
@@ -123,8 +133,9 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="pb-tick">
-      <span class="pb-tick-label">TICK</span>
-      <span class="pb-tick-value">{{ currentTick }} / {{ totalTicks - 1 }}</span>
+      <span class="pb-tick-label">TIME</span>
+      <span class="pb-tick-value">{{ fmtTime(currentTime) }} / {{ fmtTime(totalTime) }}</span>
+      <span class="pb-tick-sub">Frame {{ currentTick }} / {{ totalTicks - 1 }}</span>
     </div>
 
     <div class="pb-speed">
@@ -316,6 +327,13 @@ onBeforeUnmount(() => {
   font-family: var(--font-mono);
   font-size: 13px;
   color: var(--cyan);
+}
+
+.pb-tick-sub {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  opacity: 0.8;
 }
 
 .pb-speed {

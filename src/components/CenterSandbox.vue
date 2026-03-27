@@ -7,13 +7,15 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import type { UAVNode, BuildingBlock, UAVMeshUserData } from '../types'
 import { activeScene, sceneVersion, missionWaypoints, interactionState, sceneMode, geojsonMapData } from '../composables/useScene'
 import { useAppMode } from '../composables/useAppMode'
+import { useWorkspaceStore } from '../composables/workspaceStore'
 
 // Hover tooltip state
 const hoverInfo = ref<{ show: boolean; x: number; y: number; uav: UAVNode | null }>({
   show: false, x: 0, y: 0, uav: null
 })
-const selectedUAVId = inject<any>('selectedUAV')
+const selectedUAVId = inject<any>('selectedUAVId')
 const { currentAppMode, currentScene } = useAppMode()
+const { workspaceData } = useWorkspaceStore()
 
 const emit = defineEmits<{
   (e: 'select-uav', uav: UAVNode | null): void
@@ -21,6 +23,8 @@ const emit = defineEmits<{
 
 const engine = inject<any>('engine')
 const frame = computed(() => engine?.currentFrame?.value)
+const totalTicks = computed(() => engine?.totalTicks?.value ?? 0)
+const currentTick = computed(() => engine?.currentTick?.value ?? 0)
 
 const containerRef = ref<HTMLDivElement | null>(null)
 
@@ -98,9 +102,11 @@ const channelHexStr = ['#00f2ff', '#a855f7', '#00ff88']
 
 // GeoJSON Transform State (Synchronized with Building generation)
 const geojsonTransform = { scale: 1, offsetX: 0, offsetZ: 0 }
+let shouldAutoFocusOnNextDataset = false
 
 /** 实时 NLOS 检测: 基于 activeScene 的当前建筑物 (包含高度检查) */
 function checkNLOSDynamic(x: number, y: number, z: number): boolean {
+  if (!activeScene?.buildings?.length) return false
   for (const b of activeScene.buildings) {
     const dx = x - (b.x + b.width / 2)
     const dy = y - (b.y + b.depth / 2)
@@ -312,6 +318,7 @@ function createGround() {
 }
 
 function createBuildings() {
+  if (!activeScene?.buildings?.length) return
   const isForest = currentScene.value === 'forest'
   const isWild = currentScene.value === 'wild'
   const bColor = isForest ? 0x0a2618 : (isWild ? 0x261a0a : 0x0a1128)
@@ -1481,8 +1488,61 @@ function updateCameraPosition() {
   camera.lookAt(cameraTarget)
 }
 
+function toRenderPosition(uav: UAVNode) {
+  let x = Number(uav.x ?? 0)
+  let z = Number(uav.y ?? 0)
+  let y = Number(uav.z ?? 30)
+
+  if (sceneMode.value === 'geojson' && geojsonMapData.value) {
+    x = x * geojsonTransform.scale + geojsonTransform.offsetX
+    z = (geojsonMapData.value.map_height - z) * geojsonTransform.scale + geojsonTransform.offsetZ
+    y = y * geojsonTransform.scale
+  }
+
+  return { x, y, z }
+}
+
+function autoFocusOnUavs(uavs: UAVNode[]) {
+  const visibleUavs = uavs.filter((uav) => uav.node_type !== 1)
+  if (visibleUavs.length === 0) return
+
+  let minX = Infinity
+  let maxX = -Infinity
+  let minY = Infinity
+  let maxY = -Infinity
+  let minZ = Infinity
+  let maxZ = -Infinity
+
+  for (const uav of visibleUavs) {
+    const pos = toRenderPosition(uav)
+    minX = Math.min(minX, pos.x)
+    maxX = Math.max(maxX, pos.x)
+    minY = Math.min(minY, pos.y)
+    maxY = Math.max(maxY, pos.y)
+    minZ = Math.min(minZ, pos.z)
+    maxZ = Math.max(maxZ, pos.z)
+  }
+
+  if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !Number.isFinite(minZ) || !Number.isFinite(maxZ)) {
+    return
+  }
+
+  cameraTarget.set(
+    (minX + maxX) / 2,
+    Math.max(0, (minY + maxY) / 2),
+    (minZ + maxZ) / 2,
+  )
+
+  const spanX = maxX - minX
+  const spanZ = maxZ - minZ
+  const dominantSpan = Math.max(spanX, spanZ, 120)
+  cameraDistance = Math.max(180, Math.min(1200, dominantSpan * 1.8))
+  updateCameraPosition()
+}
+
 function onMouseDown(e: MouseEvent) {
   isDragging = true
+  shouldAutoFocusOnNextDataset = false
   prevMouse = { x: e.clientX, y: e.clientY }
   renderer.domElement.style.cursor = 'grabbing'
 }
@@ -1642,21 +1702,8 @@ function animate() {
   const delta = clock.getDelta()         // 先取 delta
   const time = clock.getElapsedTime()    // 再取累计时间
   updateUAVs()
-  updateLinks()
-  updateBrokenSparks(delta)
-
-  // Update Crosshair rotation and position
-  if (targetCrosshair && targetCrosshair.visible && selectedUAVId?.value) {
-    const mesh = uavMeshes.get(selectedUAVId.value.id)
-    if (mesh) {
-       targetCrosshair.position.copy(mesh.position)
-       targetCrosshair.position.y += 0.5 // 稍微置于模型上方避免穿模
-       targetCrosshair.rotation.z = time * 2 // 旋转准星
-       
-       const s = 1 + Math.sin(time * 8) * 0.08 // 呼吸缩放脉冲
-       targetCrosshair.scale.set(s, s, s)
-    }
-  }
+  try { updateLinks() } catch (e) { console.warn('[WingNet] link error:', e) }
+  try { updateBrokenSparks(delta) } catch (e) { /* silent */ }
 
   // Animate environment particles (gentle float)
   envParticleFrameSkip++
@@ -1679,18 +1726,26 @@ function animate() {
 
   // Dynamically animate ocean waves if open scene
   if (currentAppMode.value !== 'entry' && currentScene.value === 'open' && groundGroup) {
-    const ocean = groundGroup.children.find(c => c.name === "OceanGround") as THREE.Mesh
-    if (ocean && ocean.geometry) {
-      const pos = ocean.geometry.attributes.position as THREE.BufferAttribute
-      for (let i = 0; i < pos.count; i++) {
-        const vx = pos.getX(i)
-        const vy = pos.getY(i)
-        // 增强波浪振幅，使其在宏大比例尺下更加明显 (由 2~4m 增强至 12~18m 级海浪)
-        const wave = Math.sin(vx * 0.02 + time * 2.0) * 8.0 + Math.cos(vy * 0.015 + time * 1.5) * 10.0
-        pos.setZ(i, wave)
+    try {
+      const ocean = groundGroup.children.find(c => c.name === "OceanGround") as THREE.Mesh
+      if (ocean && ocean.geometry && ocean.geometry.attributes.position) {
+        const pos = ocean.geometry.attributes.position as THREE.BufferAttribute
+        for (let i = 0; i < pos.count; i++) {
+          const vx = pos.getX(i)
+          const vy = pos.getY(i)
+          if (!Number.isFinite(vx) || !Number.isFinite(vy)) continue;
+          // 增强波浪振幅，使其在宏大比例尺下更加明显 (由 2~4m 增强至 12~18m 级海浪)
+          const wave = Math.sin(vx * 0.02 + time * 2.0) * 8.0 + Math.cos(vy * 0.015 + time * 1.5) * 10.0
+          pos.setZ(i, wave)
+        }
+        pos.needsUpdate = true
+        // Only compute normals if it is fully supported to avoid WebGL memory sync crashes
+        if (typeof ocean.geometry.computeVertexNormals === 'function') {
+           ocean.geometry.computeVertexNormals() 
+        }
       }
-      pos.needsUpdate = true
-      ocean.geometry.computeVertexNormals() // ensures specular reflections curve naturally
+    } catch (e) {
+      console.error("[WingNet] Lake scene wave animation error:", e)
     }
   }
 
@@ -1817,72 +1872,9 @@ watch(missionWaypoints, () => {
   updateWaypointMarkers()
 }, { deep: true })
 
-let targetCrosshair: THREE.Group | null = null;
-let _camDistObj = { d: cameraDistance };
-
-function createCrosshair() {
-  const group = new THREE.Group()
-  // Outer dashed ring
-  const ringGeo = new THREE.RingGeometry(6, 7.5, 32, 1, 0, Math.PI * 2)
-  const ringMat = new THREE.MeshBasicMaterial({ color: 0xff3b3b, transparent: true, opacity: 0.8, side: THREE.DoubleSide })
-  const ring = new THREE.Mesh(ringGeo, ringMat)
-  group.add(ring)
-
-  // Cross lines
-  const lineMat = new THREE.LineBasicMaterial({ color: 0xff3b3b, transparent: true, opacity: 0.9 })
-  const lineGeo = new THREE.BufferGeometry()
-  const s = 10
-  lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
-    -s, 0, 0,  -s*0.3, 0, 0,
-     s, 0, 0,   s*0.3, 0, 0,
-     0, -s, 0,  0, -s*0.3, 0,
-     0,  s, 0,  0,  s*0.3, 0
-  ]), 3))
-  const lines = new THREE.LineSegments(lineGeo, lineMat)
-  group.add(lines)
-  
-  group.rotation.x = -Math.PI / 2
-  return group
-}
-
 watch(() => selectedUAVId?.value, (val) => {
-  if (val) {
+  if (val !== null && val !== undefined) {
     hoverInfo.value.show = false
-    const mesh = uavMeshes.get(val.id)
-    if (mesh) {
-      if (!targetCrosshair) {
-        targetCrosshair = createCrosshair()
-        scene.add(targetCrosshair)
-      }
-      targetCrosshair.visible = true
-      
-      const p = mesh.position
-      // Cinematic Camera Lock-on
-      gsap.to(cameraTarget, {
-        x: p.x, y: p.y, z: p.z,
-        duration: 1.2, ease: 'power3.inOut'
-      })
-      gsap.to(cameraAngle, {
-        phi: Math.PI * 0.25, // Lower tilt for dramatic effect
-        duration: 1.2, ease: 'power3.inOut'
-      })
-      _camDistObj.d = cameraDistance
-      gsap.to(_camDistObj, {
-        d: 80, // Zoom in dramatically
-        duration: 1.2, ease: 'power3.inOut',
-        onUpdate: () => { cameraDistance = _camDistObj.d; updateCameraPosition(); }
-      })
-    }
-  } else {
-    // Deselected Target
-    if (targetCrosshair) targetCrosshair.visible = false
-    // Restore camera distance
-    _camDistObj.d = cameraDistance
-    gsap.to(_camDistObj, {
-      d: 350, 
-      duration: 1.5, ease: 'power3.inOut',
-      onUpdate: () => { cameraDistance = _camDistObj.d; updateCameraPosition(); }
-    })
   }
 })
 
@@ -1932,7 +1924,7 @@ function startResizeTerminal(e: MouseEvent) {
 function addTerminalLog(level: string, msg: string, timeTick: number) {
   const timeStr = `[${(timeTick * 0.1).toFixed(1)}s]`
   terminalLogs.value.push({ id: logIdCounter++, time: timeStr, level, msg })
-  if (terminalLogs.value.length > 100) terminalLogs.value.shift()
+  if (terminalLogs.value.length > 40) terminalLogs.value.shift()
   nextTick(() => {
     if (terminalScrollRef.value) {
       terminalScrollRef.value.scrollTop = terminalScrollRef.value.scrollHeight
@@ -1940,14 +1932,27 @@ function addTerminalLog(level: string, msg: string, timeTick: number) {
   })
 }
 
+function fmtTargets(value: string | number[] | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '—'
+  if (Array.isArray(value)) return value.join('|')
+  return String(value)
+}
+
 // 状态追踪器 (用于比较帧间变化)
 let lastUavChannels: Record<number, number> = {}
 let lastConnectivity = -1
 let lastTotalPdr = -1
 let systemStartedLogged = false
+let seenTransmissionKeys = new Set<string>()
+let loggedFailureEvents = new Set<string>()
+let loggedRecoveryActions = new Set<string>()
 
 watch(() => engine?.currentTick?.value, (val) => {
   if (val === 0) systemStartedLogged = false // 归零时重置标志
+  if (val === 0) {
+    loggedFailureEvents = new Set()
+    loggedRecoveryActions = new Set()
+  }
 })
 
 watch(frame, (newFrame) => {
@@ -1958,41 +1963,71 @@ watch(frame, (newFrame) => {
   if (tick === 0 && !systemStartedLogged) {
     terminalLogs.value = [] // clear logs
     addTerminalLog('SYSTEM', 'Wing-Net Omni 物理核心已激活.', tick)
-    addTerminalLog('ENV', `成功加载数字高程模型，约束区(大厦)数量: ${activeScene.buildings.length}.`, tick)
     addTerminalLog('SWARM', `蜂群已部署，当前阵型: V字形，总规模: ${newFrame.uav_nodes.length}架.`, tick)
-    addTerminalLog('AI', `分布式图着色资源分配引擎 [AI Dynamic] 挂载成功.`, tick)
+    addTerminalLog('AI', `资源调度引擎已挂载，等待关键链路事件.`, tick)
     systemStartedLogged = true
     
     lastUavChannels = {}
     lastConnectivity = -1
     lastTotalPdr = -1
+    seenTransmissionKeys = new Set()
+    loggedFailureEvents = new Set()
+    loggedRecoveryActions = new Set()
   }
 
   if (tick > 0 && newFrame.uav_nodes) {
-    // 2. AI 信道博弈感知
-    for (const uav of newFrame.uav_nodes) {
-      const prevCh = lastUavChannels[uav.id]
-      if (prevCh !== undefined && prevCh !== uav.channel) {
-        addTerminalLog('AI-CORE', `警告：UAV-${String(uav.id).padStart(2,'0')} 检测到局部强干扰.`, tick)
-        addTerminalLog('AI-CORE', `执行动态图着色跳频：UAV-${String(uav.id).padStart(2,'0')} 信道从 CH${prevCh+1} -> CH${uav.channel+1}.`, tick)
-        addTerminalLog('AI-CORE', `UAV-${String(uav.id).padStart(2,'0')} 发射功率自动补偿至 22.5 dBm 以穿透障碍物.`, tick)
+    if (currentAppMode.value === 'cooperative') {
+      const failureEvents = workspaceData.cooperative?.failure_timeline?.events || []
+      const recoveryActions = workspaceData.cooperative?.recovery_timeline?.actions || []
+
+      for (const evt of failureEvents) {
+        const eventTime = Number(evt?.time)
+        if (!Number.isFinite(eventTime) || eventTime > tick) continue
+        const key = `${eventTime}-${evt?.failureType}-${evt?.targetNodeId}`
+        if (loggedFailureEvents.has(key)) continue
+        loggedFailureEvents.add(key)
+        addTerminalLog(
+          'FAILURE',
+          `故障开始：${eventTime.toFixed(1)}s，${evt?.failureType || 'unknown'} 命中 Node ${evt?.targetNodeId ?? '—'}，影响链路 ${evt?.affectedLinkCount ?? 0} 条。`,
+          tick
+        )
       }
+
+      for (const act of recoveryActions) {
+        const actionTime = Number(act?.time)
+        if (!Number.isFinite(actionTime) || actionTime > tick) continue
+        const key = `${actionTime}-${act?.actionType}-${act?.executorNodeId}-${fmtTargets(act?.targetNodeIds)}`
+        if (loggedRecoveryActions.has(key)) continue
+        loggedRecoveryActions.add(key)
+
+        const resultState = String(act?.resultState || 'unknown')
+        const prefix = ['completed', 'stable', 'recovered', 'success'].includes(resultState.toLowerCase())
+          ? 'RECOVERY'
+          : 'ACTION'
+        addTerminalLog(
+          prefix,
+          `恢复动作：${actionTime.toFixed(1)}s，${act?.actionType || 'unknown'} 由 Node ${act?.executorNodeId ?? '—'} 执行，目标 ${fmtTargets(act?.targetNodeIds)}，结果 ${resultState}.`,
+          tick
+        )
+      }
+    }
+
+    for (const uav of newFrame.uav_nodes) {
       lastUavChannels[uav.id] = uav.channel
     }
 
-    // 3. 拓扑撕裂与自愈
+    // 2. 拓扑撕裂与自愈
     const currentConn = newFrame.topology?.connectivity || 0
     if (lastConnectivity !== -1) {
       if (currentConn < lastConnectivity - 0.1 && currentConn <= 0.6) {
-        addTerminalLog('NETWORK', `⚠️ 拓扑断层：骨干链路因建筑遮挡断开.`, tick)
-        addTerminalLog('NETWORK', `🚨 网络连通率跌破警戒线：当前活跃链路急剧下降.`, tick)
+        addTerminalLog('NETWORK', `拓扑断层：骨干链路显著下降，连通率跌至 ${(currentConn * 100).toFixed(1)}%.`, tick)
       } else if (currentConn > lastConnectivity + 0.1 && currentConn > 0.8) {
-        addTerminalLog('NETWORK', `🟢 拓扑自愈修复：成功建立中继链路，网络恢复稳健.`, tick)
+        addTerminalLog('NETWORK', `拓扑恢复：中继链路重建成功，连通率回升至 ${(currentConn * 100).toFixed(1)}%.`, tick)
       }
     }
     lastConnectivity = currentConn
 
-    // 4. 重大 QoS 报文预警
+    // 3. 重大 QoS 报文预警
     const currentPdr = newFrame.QoS?.total_pdr || 0
     const delay = newFrame.QoS?.p99_latency_ms || 0
     if (lastTotalPdr !== -1) {
@@ -2008,8 +2043,57 @@ watch(frame, (newFrame) => {
       }
     }
     lastTotalPdr = currentPdr
+
+    const newTransmissionLogs = (newFrame.transmissions || [])
+      .map((item: any) => ({
+        time: Number(item.time ?? item.time_s ?? tick),
+        nodeId: Number(item.nodeId ?? item.node_id ?? -1),
+        eventType: String(item.eventType ?? item.event_type ?? 'TX_EVENT')
+      }))
+      .filter((item: any) => item.nodeId >= 0)
+      .filter((item: any) => {
+        const key = `${item.time.toFixed(2)}-${item.nodeId}-${item.eventType}`
+        if (seenTransmissionKeys.has(key)) return false
+        seenTransmissionKeys.add(key)
+        return true
+      })
+      .slice(0, 1)
+
+    if (tick % 10 === 0) {
+      for (const tx of newTransmissionLogs) {
+      addTerminalLog(
+        'SWARM',
+        `UAV-${String(tx.nodeId).padStart(2,'0')} 上报 ${tx.eventType} 事件，已记录关键链路活动.`,
+        tick
+      )
+      }
+    }
   }
 })
+
+watch(totalTicks, (ticks, oldTicks) => {
+  if (ticks <= 0) {
+    shouldAutoFocusOnNextDataset = false
+    return
+  }
+  if (ticks !== oldTicks) {
+    shouldAutoFocusOnNextDataset = true
+  }
+})
+
+watch(frame, (currentFrame) => {
+  if (!currentFrame || totalTicks.value <= 0) {
+    return
+  }
+
+  const uavs = currentFrame.uav_nodes || []
+  if (uavs.length === 0) return
+
+  if (shouldAutoFocusOnNextDataset && currentTick.value === 0) {
+    autoFocusOnUavs(uavs)
+    shouldAutoFocusOnNextDataset = false
+  }
+}, { flush: 'post' })
 
 onMounted(() => {
   initScene()
@@ -2032,7 +2116,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="containerRef" class="sandbox-container glass-panel">
-    <div class="vignette-overlay" :class="{'is-locked': !!selectedUAVId}"></div>
+    <div class="vignette-overlay"></div>
     <div class="camera-hint">
       🖱 拖拽平移 | Shift+拖拽旋转 | 滚轮缩放 | 点击选择
     </div>
@@ -2117,7 +2201,23 @@ onBeforeUnmount(() => {
         </div>
         <div class="tooltip-row">
           <span>📍 坐标</span>
-          <span class="tooltip-val">{{ hoverInfo.uav.x.toFixed(0) }}, {{ hoverInfo.uav.y.toFixed(0) }}</span>
+          <span class="tooltip-val">{{ hoverInfo.uav.x.toFixed(0) }}, {{ hoverInfo.uav.y.toFixed(0) }}, {{ (hoverInfo.uav.z || 30).toFixed(0) }}</span>
+        </div>
+        <div class="tooltip-row">
+          <span>⚡ 功率</span>
+          <span class="tooltip-val">{{ (hoverInfo.uav.power ?? 20).toFixed(1) }} dBm</span>
+        </div>
+        <div class="tooltip-row">
+          <span>📶 干扰</span>
+          <span class="tooltip-val" :class="{ low: (hoverInfo.uav.interference ?? -95) <= -75 }">{{ (hoverInfo.uav.interference ?? -95).toFixed(1) }} dBm</span>
+        </div>
+        <div class="tooltip-row">
+          <span>🛰 SINR</span>
+          <span class="tooltip-val" :class="{ low: (hoverInfo.uav.sinr ?? 0) < 10 }">{{ hoverInfo.uav.sinr !== undefined && hoverInfo.uav.sinr !== null ? hoverInfo.uav.sinr.toFixed(1) + ' dB' : '—' }}</span>
+        </div>
+        <div class="tooltip-row">
+          <span>🏃 速度</span>
+          <span class="tooltip-val">{{ hoverInfo.uav.speed !== undefined && hoverInfo.uav.speed !== null ? hoverInfo.uav.speed.toFixed(1) + ' m/s' : '—' }}</span>
         </div>
       </div>
     </Teleport>
@@ -2384,13 +2484,9 @@ onBeforeUnmount(() => {
 /* Lock-on Vignette */
 .vignette-overlay {
   position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(circle at center, transparent 40%, rgba(0,0,0,0.6) 120%);
-  opacity: 0; transition: opacity 1.2s ease, background 1.2s ease;
-  z-index: 10;
-}
-.vignette-overlay.is-locked {
+  background: radial-gradient(circle at center, transparent 45%, rgba(0,0,0,0.18) 120%);
   opacity: 1;
-  background: radial-gradient(circle at center, transparent 15%, rgba(60, 0, 0, 0.4) 100%);
+  z-index: 10;
 }
 </style>
 

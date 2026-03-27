@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { inject, computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { inject, computed } from 'vue'
 import { useAppMode, type SceneType } from '../composables/useAppMode'
 import { useWorkspaceStore } from '../composables/workspaceStore'
 
 const { currentAppMode, currentScene, setMode } = useAppMode()
-const { runMeta, taskStatus } = useWorkspaceStore()
+const { runMeta, taskStatus, workspaceData } = useWorkspaceStore()
 
 function exitToEntry() {
   setMode('entry')
@@ -16,39 +16,25 @@ const sceneNames: Record<SceneType, string> = {
   open: '湖泊',
   wild: '空旷'
 }
-const sceneName = computed(() => sceneNames[currentScene.value] || '未知环境')
+const backendSceneNames: Record<string, string> = {
+  urban: '城市高楼',
+  forest: '森林遮挡',
+  lake: '湖泊水域',
+  'open-field': '开阔野地'
+}
+const sceneName = computed(() => {
+  if (runMeta.sceneType) {
+    return backendSceneNames[runMeta.sceneType] || runMeta.sceneType
+  }
+  return sceneNames[currentScene.value] || '未知环境'
+})
 const modeName = computed(() => currentAppMode.value === 'cooperative' ? '合作场景推演' : '非合作侦察对抗')
 
 const engine = inject<any>('engine')
 const frame = computed(() => engine?.currentFrame?.value)
-const connectivity = computed(() => frame.value ? Math.round(frame.value.topology.connectivity * 100) : 0)
-const conflicts = computed(() => frame.value?.conflicts || 0)
-
-const healthGradient = computed(() => {
-  const c = connectivity.value
-  // 优化为更具军事高级感的冷色调渐变，降低杂色，两端平滑淡出
-  if (c >= 90 && conflicts.value === 0) return 'linear-gradient(90deg, transparent, rgba(0, 255, 136, 0.8), rgba(0, 242, 255, 0.8), transparent)'
-  if (c >= 75) return 'linear-gradient(90deg, transparent, rgba(0, 242, 255, 0.8), rgba(168, 85, 247, 0.8), transparent)'
-  if (c >= 60) return 'linear-gradient(90deg, transparent, rgba(250, 204, 21, 0.8), rgba(255, 59, 59, 0.8), transparent)'
-  return 'linear-gradient(90deg, transparent, rgba(255, 59, 59, 0.9), rgba(200, 0, 0, 0.5), transparent)'
-})
-
-const realTime = ref('')
-let clockTimer: ReturnType<typeof setInterval> | null = null
-
-function updateClock() {
-  const now = new Date()
-  realTime.value = now.toLocaleTimeString('zh-CN', { hour12: false })
-}
-
-onMounted(() => {
-  updateClock()
-  clockTimer = setInterval(updateClock, 1000)
-})
-
-onBeforeUnmount(() => {
-  if (clockTimer) clearInterval(clockTimer)
-})
+const simTime = computed(() => Number(frame.value?.tick ?? 0))
+const coopDashboard = computed(() => workspaceData.cooperative?.dashboard_snapshot)
+const ncAttackPlan = computed(() => workspaceData.nonCooperative?.attack?.plan)
 </script>
 
 <template>
@@ -92,11 +78,30 @@ onBeforeUnmount(() => {
           <span class="chip-label">模式</span>
           <span class="chip-value">{{ modeName }}</span>
         </div>
-        <!-- 合作模式显示通信模式 -->
-        <div v-if="currentAppMode === 'cooperative' && runMeta.communicationMode" class="chip">
+        <div v-if="currentAppMode === 'cooperative' && coopDashboard?.phase" class="chip">
           <span class="dot cyan-dot"></span>
-          <span class="chip-label">通信</span>
-          <span class="chip-value">{{ runMeta.communicationMode }}</span>
+          <span class="chip-label">阶段</span>
+          <span class="chip-value">{{ coopDashboard.phase }}</span>
+        </div>
+        <div v-if="currentAppMode === 'cooperative' && coopDashboard?.failureTargetId != null" class="chip">
+          <span class="dot" :class="coopDashboard?.failureActive ? 'red-dot' : 'cyan-dot'"></span>
+          <span class="chip-label">故障目标</span>
+          <span class="chip-value">Node {{ coopDashboard.failureTargetId }}</span>
+        </div>
+        <div v-if="currentAppMode === 'cooperative' && coopDashboard?.recoveryStatus" class="chip">
+          <span class="dot" :class="['stable', 'completed', 'recovered'].includes(coopDashboard.recoveryStatus) ? 'green-dot' : coopDashboard.recoveryStatus === 'active' ? 'dot-yellow' : 'red-dot'"></span>
+          <span class="chip-label">恢复</span>
+          <span class="chip-value">{{ coopDashboard.recoveryStatus }}</span>
+        </div>
+        <div v-if="currentAppMode === 'non_cooperative' && ncAttackPlan?.attackType" class="chip">
+          <span class="dot red-dot"></span>
+          <span class="chip-label">打击类型</span>
+          <span class="chip-value">{{ ncAttackPlan.attackType }}</span>
+        </div>
+        <div v-if="currentAppMode === 'non_cooperative' && ncAttackPlan?.targetBindingStatus" class="chip">
+          <span class="dot" :class="['confirmed', 'binding_success', 'stable'].includes(ncAttackPlan.targetBindingStatus) ? 'green-dot' : 'yellow-dot'"></span>
+          <span class="chip-label">绑定</span>
+          <span class="chip-value">{{ ncAttackPlan.targetBindingStatus }}</span>
         </div>
         <!-- 任务 ID -->
         <div v-if="runMeta.taskId" class="chip">
@@ -104,40 +109,17 @@ onBeforeUnmount(() => {
           <span class="chip-label">任务</span>
           <span class="chip-value">{{ runMeta.taskId.substring(0, 8) }}</span>
         </div>
-        <div class="chip-divider"></div>
-
-        <div class="chip" :class="{ excellent: connectivity >= 90 }">
-          <span class="dot green-dot"></span>
-          <span class="chip-label">拓扑连通</span>
-          <span class="chip-value">{{ connectivity }}%</span>
-        </div>
-        <div class="chip" :class="{ warn: conflicts > 0, danger: conflicts > 2 }">
-          <span class="dot" :class="conflicts > 0 ? 'red-dot' : 'green-dot'"></span>
-          <span class="chip-label">同频冲突</span>
-          <span class="chip-value">{{ conflicts }}</span>
-        </div>
-        <div class="chip">
-          <span class="dot cyan-dot pulse-dot"></span>
-          <span class="chip-label">引擎在线</span>
-        </div>
       </div>
     </div>
 
     <div class="top-right">
       <div class="time-block">
         <div class="sys-time">
-          <span class="time-label">推演帧数</span>
-          <span class="time-value">{{ frame?.tick ?? 0 }}</span>
-        </div>
-        <div class="time-divider"></div>
-        <div class="real-clock">
-          <span class="time-label">物理时间</span>
-          <span class="clock-value">{{ realTime }}</span>
+          <span class="time-label">推演时间</span>
+          <span class="time-value">{{ simTime.toFixed(1) }}s</span>
         </div>
       </div>
     </div>
-
-    <div class="health-status-line" :style="{ background: healthGradient }"></div>
   </header>
 </template>
 
@@ -198,6 +180,17 @@ onBeforeUnmount(() => {
 }
 
 .top-left { display: flex; align-items: center; gap: 20px; }
+.top-center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+}
+
+.top-right {
+  flex-shrink: 0;
+}
 
 .back-btn {
   background: rgba(0, 242, 255, 0.1);
@@ -277,6 +270,9 @@ onBeforeUnmount(() => {
 .status-chips {
   display: flex;
   gap: 8px;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .chip {
@@ -299,13 +295,6 @@ onBeforeUnmount(() => {
   border-color: rgba(0, 242, 255, 0.15);
 }
 
-.chip-divider {
-  width: 1px;
-  height: 20px;
-  background: rgba(255, 255, 255, 0.15);
-  margin: 0 4px;
-}
-
 .mode-chip.danger-mode {
   border-color: rgba(255, 59, 59, 0.3);
   background: rgba(255, 59, 59, 0.08);
@@ -313,27 +302,6 @@ onBeforeUnmount(() => {
 }
 .mode-chip.danger-mode .chip-value {
   color: #ff3c3c;
-}
-
-.chip.excellent {
-  border-color: rgba(0, 255, 136, 0.2);
-  background: rgba(0, 255, 136, 0.04);
-}
-
-.chip.warn {
-  border-color: rgba(255, 170, 0, 0.25);
-  background: rgba(255, 170, 0, 0.06);
-}
-
-.chip.danger {
-  border-color: rgba(255, 59, 59, 0.3);
-  background: rgba(255, 59, 59, 0.08);
-  animation: chip-pulse 1.5s infinite;
-}
-
-@keyframes chip-pulse {
-  0%, 100% { box-shadow: none; }
-  50% { box-shadow: 0 0 12px rgba(255, 59, 59, 0.15); }
 }
 
 .chip-label {
@@ -373,19 +341,10 @@ onBeforeUnmount(() => {
 .time-block {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
 }
 
-.time-divider {
-  width: 1px;
-  height: 28px;
-  background: linear-gradient(180deg,
-    transparent,
-    rgba(0, 242, 255, 0.2),
-    transparent);
-}
-
-.sys-time, .real-clock {
+.sys-time {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -401,30 +360,10 @@ onBeforeUnmount(() => {
 
 .time-value {
   font-family: var(--font-display);
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
   color: #ffffff; /* 核心变白，发光留给 shadow */
   text-shadow: 0 0 8px rgba(0, 242, 255, 0.8), 0 0 16px rgba(0, 242, 255, 0.4); /* 收紧内层发光，扩大外层柔光 */
   line-height: 1;
-}
-
-.clock-value {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  letter-spacing: 1px;
-  line-height: 1;
-}
-
-.health-status-line {
-  position: absolute;
-  bottom: -1px;
-  left: 5%;
-  right: 5%;
-  height: 2px;
-  border-radius: 1px;
-  transition: background 1s ease;
-  z-index: 2;
 }
 </style>

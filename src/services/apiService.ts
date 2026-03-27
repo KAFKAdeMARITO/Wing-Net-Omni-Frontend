@@ -1,6 +1,7 @@
 import type { BuildingBlock, FrameData, UAVNode, GeoJsonMapData, FrontendResponse, FrontendResponseData } from '../types'
 import type { FormationType } from '../data/mockData'
 import { GEOMETRIC_CONFLICT_DISTANCE_M, resolveConflictState } from '../utils/conflict'
+import { formatFrontendDisplayError, normalizeFrontendResponse } from '../adapters/frontendResponseAdapter'
 
 // ── 合作模式专用配置字段 ──
 export interface CooperativeConfigParams {
@@ -72,9 +73,10 @@ export interface SimulationConfig extends CustomSimulationParams, CooperativeCon
 const BASE_URL = 'http://localhost:5000';
 
 function isEmptyValue(value: unknown): boolean {
-    if (value === null || value === undefined) return true;
+    if (value === undefined) return true;
     if (typeof value === 'string') return value.trim().length === 0;
-    if (Array.isArray(value)) return value.length === 0;
+    // Do not reject empty arrays (e.g., empty events list is valid) or null values as they might represent a calculated empty state
+    // if (Array.isArray(value)) return value.length === 0;
     return false;
 }
 
@@ -169,6 +171,25 @@ function validateFrontendPayload(
     return payload;
 }
 
+function parseTimelineValue(value: unknown): number | null {
+    if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : null;
+    }
+    if (typeof value === 'string' && value.trim().length > 0) {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+}
+
+function parseRowTime(row: any): number | null {
+    return parseTimelineValue(row?.time ?? row?.time_s ?? row?.timestamp ?? row?.t);
+}
+
+function parseRowNodeId(row: any): number | null {
+    return parseTimelineValue(row?.nodeId ?? row?.node_id ?? row?.id ?? row?.node);
+}
+
 /**
  * Parses the raw JSON response from the backend into a FrameData array
  * matching what the frontend expects.
@@ -186,8 +207,11 @@ function parseBackendJSONToFrames(payload: any, swarmSize: number): FrameData[] 
     const resourceDetailed = payload.resource_detailed || payload.shared?.resource_detailed || [];
     const detailedByTime = new Map<number, Map<number, any>>();
     for (const r of resourceDetailed) {
-        const t = Math.round(Number(r.time) * 10) / 10;
-        const nid = Number(r.node_id ?? r.nodeId ?? 0);
+        const parsedTime = parseRowTime(r);
+        const parsedNodeId = parseRowNodeId(r);
+        if (parsedTime === null || parsedNodeId === null) continue;
+        const t = Math.round(parsedTime * 10) / 10;
+        const nid = parsedNodeId;
         if (!detailedByTime.has(t)) detailedByTime.set(t, new Map());
         detailedByTime.get(t)!.set(nid, r);
     }
@@ -198,14 +222,16 @@ function parseBackendJSONToFrames(payload: any, swarmSize: number): FrameData[] 
 
     // Process QoS
     for (const q of qos) {
-        const t = q.time;
+        const t = parseRowTime(q);
+        if (t === null) continue;
         if (!timeMap.has(t)) timeMap.set(t, { qos: q, positions: new Map(), num_links: 0, connectivity: 0 });
         else timeMap.get(t).qos = q;
     }
 
     // Process Topology Evolution
     for (const tp of topo) {
-        const t = tp.time;
+        const t = parseRowTime(tp);
+        if (t === null) continue;
         if (!timeMap.has(t)) timeMap.set(t, { qos: {}, positions: new Map(), num_links: tp.num_links, connectivity: tp.connectivity });
         else {
             timeMap.get(t).num_links = tp.num_links;
@@ -215,17 +241,28 @@ function parseBackendJSONToFrames(payload: any, swarmSize: number): FrameData[] 
 
     // Process Positions
     for (const p of positions) {
-        const t = p.time;
+        const t = parseRowTime(p);
+        const nodeId = parseRowNodeId(p);
+        if (t === null || nodeId === null) continue;
         if (!timeMap.has(t)) {
             timeMap.set(t, { qos: {}, positions: new Map(), num_links: 0, connectivity: 0 });
         }
-        timeMap.get(t).positions.set(p.nodeId, p);
+        timeMap.get(t).positions.set(nodeId, {
+            ...p,
+            nodeId,
+            x: Number(p.x ?? 0),
+            y: Number(p.y ?? 0),
+            z: p.z !== undefined && p.z !== null ? Number(p.z) : undefined,
+            speed: p.speed !== undefined && p.speed !== null ? Number(p.speed) : undefined,
+        });
     }
 
     // Process Resource Allocation (channel / power / rate per UAV per tick)
     const resMap = new Map<number, any>();
     for (const r of resourceAlloc) {
-        resMap.set(Number(r.time ?? 0), r);
+        const t = parseRowTime(r);
+        if (t === null) continue;
+        resMap.set(t, r);
     }
 
     // Process Topology Links (backend returns string list like: "0.0-0.2s: Node0-Node1, Node0-Node2")
@@ -431,7 +468,7 @@ function parseBackendJSONToFrames(payload: any, swarmSize: number): FrameData[] 
             conflicts: uavs.filter(u => u.is_conflict).length,
             links: activeLinks,
             transmissions: backendTransmissions.filter((tr: any) => {
-                const trTime = typeof tr.time === 'number' ? tr.time : (typeof tr.time_s === 'number' ? tr.time_s : parseFloat(tr.time || tr.time_s || '0'));
+                const trTime = parseRowTime(tr) ?? 0;
                 return Math.abs(trTime - tick) <= 0.5;
             })
         } as any);
@@ -451,8 +488,11 @@ export function mergeDetailedIntoFrames(
 
   const detailedIndex = new Map<number, Map<number, any>>()
   for (const r of resourceDetailed) {
-    const t = Math.round(Number(r.time) * 10) / 10
-    const nid = Number(r.node_id)
+    const parsedTime = parseRowTime(r)
+    const parsedNodeId = parseRowNodeId(r)
+    if (parsedTime === null || parsedNodeId === null) continue
+    const t = Math.round(parsedTime * 10) / 10
+    const nid = parsedNodeId
     if (!detailedIndex.has(t)) detailedIndex.set(t, new Map())
     detailedIndex.get(t)!.set(nid, r)
   }
@@ -544,6 +584,16 @@ export const apiService = {
             if (config.allowRouteRebuild !== undefined) body.allowRouteRebuild = config.allowRouteRebuild
         }
 
+        // 非合作模式专用字段
+        if (config.operationMode === 'non_cooperative') {
+            if (config.enableNonCooperativeAttack !== undefined) body.enableNonCooperativeAttack = config.enableNonCooperativeAttack
+            if (config.attackType) body.attackType = config.attackType
+            if (config.manualStrikeTarget !== undefined) body.manualStrikeTarget = config.manualStrikeTarget
+            if (config.attackExecuteTime !== undefined) body.attackExecuteTime = config.attackExecuteTime
+            if (config.attackEvaluationDuration !== undefined) body.attackEvaluationDuration = config.attackEvaluationDuration
+            if (config.attackNeighborhoodHop !== undefined) body.attackNeighborhoodHop = config.attackNeighborhoodHop
+        }
+
         // Custom 难度参数
         if (config.difficulty === 'Custom') {
             const customKeys: (keyof CustomSimulationParams)[] = [
@@ -631,7 +681,9 @@ export const apiService = {
                             clearInterval(timer)
                             console.log("[WingNet API] 🎉 数据结算完成！")
 
-                            const rawData = validateFrontendPayload(pollData.data, config)
+                            const rawData = normalizeFrontendResponse(
+                                validateFrontendPayload(pollData.data, config)
+                            )
                             // 解析帧数据（从 shared 或直接从 data）
                             const frameSource: any = rawData?.shared ? rawData.shared : rawData
                             let frames = parseBackendJSONToFrames(
@@ -668,7 +720,7 @@ export const apiService = {
 
         } catch (error) {
             console.error('[WingNet API] Backend integration failed:', error)
-            throw error
+            throw new Error(formatFrontendDisplayError(error))
         }
     },
 

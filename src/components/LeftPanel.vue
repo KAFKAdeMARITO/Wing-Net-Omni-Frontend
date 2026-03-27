@@ -8,6 +8,7 @@ import { activeScene, missionWaypoints, interactionState, simulationStrategy, ge
 import { useAppMode } from '../composables/useAppMode'
 import { useWorkspaceStore } from '../composables/workspaceStore'
 import type { FormationType } from '../data/mockData'
+import { formatFrontendDisplayError } from '../adapters/frontendResponseAdapter'
 
 const { currentAppMode, backendSceneType, backendOperationMode } = useAppMode()
 const { loadFromFrontendResponse, setTaskStatus, workspaceData, runMeta } = useWorkspaceStore()
@@ -179,6 +180,7 @@ function onSaveCustom(params: CustomSimulationParams) {
 // -------------------------------------
 
 const isSimulating = ref(false)
+const simError = ref('')
 
 // -------- Non-Cooperative State --------
 const nonCoopConfig = reactive({
@@ -253,6 +255,7 @@ function buildSimConfig(mode: 'cooperative' | 'non_cooperative'): SimulationConf
 async function handleStartSim() {
   if (isSimulating.value) return
   isSimulating.value = true
+  simError.value = ''
   setTaskStatus('RUNNING')
   try {
     const config = buildSimConfig(backendOperationMode.value)
@@ -269,7 +272,7 @@ async function handleStartSim() {
   } catch(e: any) {
     console.error('仿真启动失败', e)
     setTaskStatus('FAILED')
-    alert('推演运算失败：\n' + (e.message || '无法连接到仿真引擎或内部错误'))
+    simError.value = formatFrontendDisplayError(e)
   } finally {
     isSimulating.value = false
   }
@@ -474,6 +477,10 @@ function handleExecuteAttack() {
           </span>
           <span class="btn-sweep"></span>
         </button>
+
+        <div v-if="simError" class="sim-error-banner">
+          {{ simError }}
+        </div>
       </div>
 
       <!-- 非合作模式控制面板 -->
@@ -510,6 +517,10 @@ function handleExecuteAttack() {
           </span>
           <span class="btn-sweep"></span>
         </button>
+
+        <div v-if="simError" class="sim-error-banner">
+          {{ simError }}
+        </div>
 
         <div class="divider" style="margin: 8px 0; border-bottom: 1px dashed rgba(255,255,255,0.1);"></div>
 
@@ -568,6 +579,10 @@ function handleExecuteAttack() {
               <span>打击计算中...</span>
             </span>
           </button>
+
+          <div v-if="simError" class="sim-error-banner">
+            {{ simError }}
+          </div>
         </template>
       </div>
     </div>
@@ -815,6 +830,17 @@ input[type=number].glass-select {
 
 .sim-btn:active {
   transform: translateY(0) !important;
+}
+
+.sim-error-banner {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 107, 107, 0.35);
+  background: rgba(255, 59, 59, 0.08);
+  color: #ffb3b3;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .btn-content {

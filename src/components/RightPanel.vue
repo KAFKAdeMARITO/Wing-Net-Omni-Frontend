@@ -1,29 +1,134 @@
 <script setup lang="ts">
-import { inject, computed, ref, reactive, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { inject, computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import gsap from 'gsap'
 import { useAppMode } from '../composables/useAppMode'
 import { useWorkspaceStore } from '../composables/workspaceStore'
 
-const { currentAppMode } = useAppMode()
-const { workspaceData, runMeta } = useWorkspaceStore()
+const { currentAppMode, currentScene } = useAppMode()
+const { workspaceData } = useWorkspaceStore()
 
 // ── 合作模式数据 ──
+const coopModeSummary = computed(() => workspaceData.cooperative?.mode_summary)
 const coopDashboard = computed(() => workspaceData.cooperative?.dashboard_snapshot)
-const coopMetrics = computed(() => workspaceData.cooperative?.metrics_timeseries?.samples || [])
-const coopFailureEvents = computed(() => workspaceData.cooperative?.failure_timeline?.events || [])
-const coopRecoveryActions = computed(() => workspaceData.cooperative?.recovery_timeline?.actions || [])
+const coopMetrics = computed(() => {
+  const samples = workspaceData.cooperative?.metrics_timeseries?.samples
+  if (Array.isArray(samples) && samples.length > 0) return samples
+  return Array.isArray(workspaceData.cooperative?.recovery_metrics) ? workspaceData.cooperative.recovery_metrics : []
+})
+const coopFailureEvents = computed(() => {
+  const events = workspaceData.cooperative?.failure_timeline?.events
+  if (Array.isArray(events) && events.length > 0) return events
+  const fallback = Array.isArray(workspaceData.cooperative?.failure_events) ? workspaceData.cooperative.failure_events : []
+  return fallback.map((evt: any, index: number) => ({
+    eventId: evt.eventId ?? index,
+    time: Number(evt.time ?? evt.failure_time ?? 0),
+    failureType: evt.failureType ?? evt.failure_type,
+    targetNodeId: evt.targetNodeId ?? evt.target_node_id,
+    targetRole: evt.targetRole ?? evt.target_role,
+    isLeaderTarget: evt.isLeaderTarget ?? evt.is_leader_target,
+    failureState: evt.failureState ?? evt.failure_state,
+    affectedNeighborCount: evt.affectedNeighborCount ?? evt.affected_neighbor_count,
+    affectedLinkCount: evt.affectedLinkCount ?? evt.affected_link_count,
+    effectSummary: evt.effectSummary ?? evt.effect_summary,
+    source: evt.source,
+  }))
+})
+const coopRecoveryActions = computed(() => {
+  const actions = workspaceData.cooperative?.recovery_timeline?.actions
+  if (Array.isArray(actions) && actions.length > 0) return actions
+  const fallback = Array.isArray(workspaceData.cooperative?.recovery_actions) ? workspaceData.cooperative.recovery_actions : []
+  return fallback.map((act: any, index: number) => ({
+    actionId: act.actionId ?? index,
+    time: Number(act.time ?? act.action_time ?? 0),
+    phase: act.phase,
+    communicationMode: act.communicationMode ?? act.communication_mode,
+    recoveryPolicy: act.recoveryPolicy ?? act.recovery_policy,
+    effectiveRecoveryPolicy: act.effectiveRecoveryPolicy ?? act.effective_recovery_policy,
+    triggerReason: act.triggerReason ?? act.trigger_reason,
+    executorNodeId: act.executorNodeId ?? act.executor_node_id,
+    targetNodeIds: act.targetNodeIds ?? act.target_node_ids,
+    actionType: act.actionType ?? act.action_type,
+    oldValue: act.oldValue ?? act.old_value,
+    newValue: act.newValue ?? act.new_value,
+    scope: act.scope,
+    expectedEffect: act.expectedEffect ?? act.expected_effect,
+    resultState: act.resultState ?? act.result_state,
+  }))
+})
+const coopMetricSnapshot = computed(() => {
+  const samples = coopMetrics.value
+  if (!samples.length) return null
+
+  const currentTime = Number(frame.value?.tick ?? Number.POSITIVE_INFINITY)
+  const candidates = samples
+    .map((item: any) => ({
+      ...item,
+      time: Number(item.time)
+    }))
+    .filter((item: any) => Number.isFinite(item.time))
+    .sort((a: any, b: any) => a.time - b.time)
+
+  if (!candidates.length) return samples[samples.length - 1]
+
+  let matched = candidates[0]
+  for (const item of candidates) {
+    if (item.time <= currentTime) matched = item
+    else break
+  }
+  return matched
+})
+const coopDerivedMetricSnapshot = computed(() => {
+  if (coopMetricSnapshot.value) return coopMetricSnapshot.value
+  if (!coopDashboard.value) return null
+  return {
+    failureNeighborhoodNodeCount: 0,
+    failureNeighborhoodPdr: null,
+    failureNeighborhoodThroughputMbps: null,
+    failureNeighborhoodDelayMs: null,
+    isFailureTargetFailed: coopDashboard.value.failureActive,
+    failureTargetPdr: null,
+    failureTargetDelayMs: null,
+    routeChangeCount: coopDashboard.value.routeChangeCount,
+    relaySwitchCount: coopDashboard.value.relaySwitchCount,
+    controlDeadlineMissCount: coopDashboard.value.controlDeadlineMissCount,
+    routePressureScore: coopDashboard.value.routePressureScore,
+  }
+})
+const coopResponseTimeSec = computed(() => {
+  return coopDashboard.value?.responseTimeSec ?? coopMetricSnapshot.value?.responseTimeSec ?? null
+})
+const coopRecoveryTimeSec = computed(() => {
+  return coopDashboard.value?.recoveryTimeSec ?? coopMetricSnapshot.value?.recoveryTimeSec ?? null
+})
+const coopStabilizationTimeSec = computed(() => {
+  return coopDashboard.value?.stabilizationTimeSec ?? coopMetricSnapshot.value?.stabilizationTimeSec ?? null
+})
 
 // ── 非合作模式数据 ──
 const ncObservedEvents = computed(() => workspaceData.nonCooperative?.observation_inference?.observed_signal_events || [])
+const ncObservedWindows = computed(() => workspaceData.nonCooperative?.observation_inference?.observed_comm_windows || [])
 const ncInferredEdges = computed(() => workspaceData.nonCooperative?.observation_inference?.inferred_topology_edges || [])
+const ncInferredNodes = computed(() => workspaceData.nonCooperative?.observation_inference?.inferred_graph_nodes || [])
 const ncKeyNodes = computed(() => workspaceData.nonCooperative?.observation_inference?.key_node_candidates || [])
 const ncLinkEvidence = computed(() => workspaceData.nonCooperative?.observation_inference?.observed_link_evidence || [])
+
+const ncInferredNodesTop = computed(() => {
+  return ncInferredNodes.value
+    .map((item: any) => ({
+      ...item,
+      roleConfidence: Number(item.roleConfidence ?? 0),
+      anomalyScore: Number(item.anomalyScore ?? 0)
+    }))
+    .sort((a: any, b: any) => b.roleConfidence - a.roleConfidence)
+    .slice(0, 10)
+})
 
 // ── 非合作打击闭环数据 ──
 const ncAttackRecommendations = computed(() => workspaceData.nonCooperative?.attack?.recommendations || [])
 const ncAttackPlan = computed(() => workspaceData.nonCooperative?.attack?.plan)
 const ncAttackEvents = computed(() => workspaceData.nonCooperative?.attack?.events || [])
+const ncTargetBinding = computed(() => workspaceData.nonCooperative?.attack?.target_binding || [])
 const ncAttackEffectMetrics = computed(() => workspaceData.nonCooperative?.attack?.effect_metrics || [])
 const ncAttackSummary = computed(() => workspaceData.nonCooperative?.attack?.summary)
 const hasAttackResults = computed(() => !!(ncAttackPlan.value || ncAttackEvents.value.length > 0 || ncAttackEffectMetrics.value.length > 0))
@@ -44,6 +149,69 @@ const ncAttackEffectSeries = computed(() => {
     .filter(item => Number.isFinite(item.time) && Number.isFinite(item.connectivity))
     .sort((a, b) => a.time - b.time)
 })
+const ncLatestTargetBinding = computed(() => {
+  return [...ncTargetBinding.value]
+    .map((item: any) => ({
+      ...item,
+      eventTime: Number(item.eventTime ?? 0),
+      observedNodeId: Number(item.observedNodeId ?? 0),
+      bindingConfidence: Number(item.bindingConfidence ?? 0),
+      executedEntityNodeId: item.executedEntityNodeId != null ? Number(item.executedEntityNodeId) : null
+    }))
+    .sort((a: any, b: any) => b.eventTime - a.eventTime)[0] || null
+})
+const ncAttackGlobalFinalMetrics = computed(() => {
+  const finalMetrics = ncAttackSummary.value?.finalMetrics ?? ncAttackSummary.value?.final_metrics
+  if (!finalMetrics) return null
+  const raw = finalMetrics.global ?? finalMetrics
+  if (!raw) return null
+  // snake_case → camelCase 兼容
+  return {
+    connectivityRatio: raw.connectivityRatio ?? raw.connectivity_ratio,
+    pdr: raw.pdr,
+    throughputMbps: raw.throughputMbps ?? raw.throughput_mbps ?? raw.throughput,
+    delayMs: raw.delayMs ?? raw.delay_ms ?? raw.delay,
+    count: raw.count ?? raw.sample_count,
+  }
+})
+const ncAttackNeighborhoodFinalMetrics = computed(() => {
+  const finalMetrics = ncAttackSummary.value?.finalMetrics ?? ncAttackSummary.value?.final_metrics
+  if (!finalMetrics) return null
+  const raw = finalMetrics.target_neighborhood ?? finalMetrics.targetNeighborhood
+  if (!raw) return null
+  return {
+    connectivityRatio: raw.connectivityRatio ?? raw.connectivity_ratio,
+    pdr: raw.pdr,
+    throughputMbps: raw.throughputMbps ?? raw.throughput_mbps,
+    delayMs: raw.delayMs ?? raw.delay_ms,
+    count: raw.count ?? raw.sample_count,
+  }
+})
+function normalizeMetricBucket(raw: any) {
+  if (!raw) return null
+  return {
+    connectivityRatio: raw.connectivityRatio ?? raw.connectivity_ratio,
+    pdr: raw.pdr,
+    throughputMbps: raw.throughputMbps ?? raw.throughput_mbps ?? raw.throughput,
+    delayMs: raw.delayMs ?? raw.delay_ms ?? raw.delay,
+    count: raw.count ?? raw.sample_count ?? raw.num_samples ?? 0,
+  }
+}
+
+const ncAttackPhaseRows = computed(() => {
+  const phaseMetrics = ncAttackSummary.value?.phaseMetrics ?? ncAttackSummary.value?.phase_metrics
+  if (!phaseMetrics || typeof phaseMetrics !== 'object') return []
+
+  return ['pre_attack', 'immediate_post_attack', 'recovery', 'final']
+    .map((phase) => {
+      const bucket = phaseMetrics[phase]
+      if (!bucket) return null
+      const global = normalizeMetricBucket(bucket.global)
+      const neighborhood = normalizeMetricBucket(bucket.target_neighborhood ?? bucket.targetNeighborhood)
+      return global || neighborhood ? { phase, global, neighborhood } : null
+    })
+    .filter(Boolean) as Array<{ phase: string; global?: any; neighborhood?: any }>
+})
 
 /** 格式化 null 安全的时间值，避免将 null 显示为 0 */
 function fmtTime(v: number | null | undefined): string {
@@ -51,59 +219,123 @@ function fmtTime(v: number | null | undefined): string {
   return v.toFixed(2) + 's'
 }
 
+function fmtTargets(value: string | number[] | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '—'
+  if (Array.isArray(value)) return value.join('|')
+  return String(value)
+}
+
+function fmtRecoveryScope(act: any): string {
+  const targets = fmtTargets(act?.targetNodeIds)
+  if (targets !== '—') return `目标 ${targets}`
+
+  const scope = String(act?.scope ?? '').trim()
+  if (scope.length > 0) return `范围 ${scope}`
+
+  const policy = String(act?.effectiveRecoveryPolicy ?? act?.recoveryPolicy ?? '').trim()
+  if (policy.includes('global')) return '范围 全局'
+  if (policy.includes('local')) return '范围 局部'
+
+  const actionType = String(act?.actionType ?? '').trim()
+  if (actionType.includes('global')) return '范围 全局'
+  if (actionType.includes('local')) return '范围 局部'
+
+  return '范围 未指定'
+}
+
+function fmtCompactTime(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—'
+  return `${Number(value).toFixed(1)}s`
+}
+
+function fmtRatio(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—'
+  return `${(Number(value) * 100).toFixed(1)}%`
+}
+
+const ncRecentObservedEvents = computed(() => {
+  return [...ncObservedEvents.value]
+    .map((item: any) => ({
+      ...item,
+      eventTime: Number(item.eventTime ?? item.time ?? 0),
+      observedNodeId: Number(item.observedNodeId ?? item.nodeId ?? 0),
+      avgRxPowerDbm: item.avgRxPowerDbm ?? item.power,
+      channelId: item.channelId,
+      signalDetected: item.signalDetected,
+      missingReason: item.missingReason,
+      noiseLevel: item.noiseLevel
+    }))
+    .sort((a: any, b: any) => b.eventTime - a.eventTime)
+    .slice(0, 8)
+})
+
+const ncWindowSummary = computed(() => {
+  return [...ncObservedWindows.value]
+    .map((item: any) => ({
+      ...item,
+      observedNodeId: Number(item.observedNodeId ?? item.nodeId ?? 0),
+      windowStart: Number(item.windowStart ?? 0),
+      windowEnd: Number(item.windowEnd ?? 0),
+      windowConfidence: Number(item.windowConfidence ?? 0),
+      windowMissingRatio: Number(item.windowMissingRatio ?? 0),
+      avgEvidenceStrength: Number(item.avgEvidenceStrength ?? 0)
+    }))
+    .sort((a: any, b: any) => (b.windowConfidence || 0) - (a.windowConfidence || 0))
+    .slice(0, 6)
+})
+
+const ncLinkEvidenceTop = computed(() => {
+  return [...ncLinkEvidence.value]
+    .map((item: any) => ({
+      ...item,
+      srcObservedNodeId: Number(item.srcObservedNodeId ?? item.srcNode ?? 0),
+      dstObservedNodeId: Number(item.dstObservedNodeId ?? item.dstNode ?? 0),
+      edgeObservationConfidence: Number(item.edgeObservationConfidence ?? item.confidence ?? 0),
+      evidenceStrength: Number(item.evidenceStrength ?? 0),
+      dominantDirection: String(item.dominantDirection ?? item.evidenceType ?? '—')
+    }))
+    .sort((a: any, b: any) => (b.edgeObservationConfidence || 0) - (a.edgeObservationConfidence || 0))
+    .slice(0, 8)
+})
+
+const ncInferredEdgesTop = computed(() => {
+  return [...ncInferredEdges.value]
+    .map((item: any) => ({
+      ...item,
+      srcObservedNodeId: Number(item.srcObservedNodeId ?? item.srcNode ?? 0),
+      dstObservedNodeId: Number(item.dstObservedNodeId ?? item.dstNode ?? 0),
+      edgeProbability: Number(item.edgeProbability ?? item.probability ?? 0),
+      edgeConfidence: Number(item.edgeConfidence ?? item.confidence ?? 0),
+      edgeDynamicState: String(item.edgeDynamicState ?? 'unknown'),
+      dominantDirection: String(item.dominantDirection ?? '—')
+    }))
+    .sort((a: any, b: any) => (b.edgeProbability || 0) - (a.edgeProbability || 0))
+    .slice(0, 8)
+})
+
+const ncKeyNodeBreakdown = computed(() => {
+  return [...ncKeyNodes.value]
+    .map((item: any) => ({
+      ...item,
+      nodeId: Number(item.nodeId ?? item.observedNodeId ?? 0),
+      score: Number(item.score ?? item.keyNodeScore ?? 0),
+      weightedDegreeScore: Number(item.weightedDegreeScore ?? 0),
+      avgIncidentProbability: Number(item.avgIncidentProbability ?? 0),
+      avgIncidentConfidence: Number(item.avgIncidentConfidence ?? 0),
+      keyNodeMethod: String(item.keyNodeMethod ?? item.role ?? '—')
+    }))
+    .sort((a: any, b: any) => (a.rank ?? 999) - (b.rank ?? 999))
+    .slice(0, 5)
+})
+
 const engine = inject<any>('engine')
 const frame = computed(() => engine?.currentFrame?.value)
 const qos = computed(() => frame.value?.QoS || { total_pdr: 0, throughput_mbps: 0, p99_latency_ms: 0 })
-const topo = computed(() => frame.value?.topology || { num_links: 0, connectivity: 0 })
 
 const pdrHistory = ref<number[]>([])
 const tpHistory = ref<number[]>([])
 const tickLabels = ref<number[]>([])
 const MAX_HISTORY = 60
-
-// 拓扑动画状态
-const display = reactive({
-  links: 0,
-  connectivity: 0
-})
-const _tweenTopo = { links: 0, connectivity: 0 }
-
-watch(topo, (n) => {
-  if (!n) return
-  gsap.to(_tweenTopo, {
-    links: n.num_links || 0,
-    connectivity: (n.connectivity || 0) * 100,
-    duration: 0.3,
-    ease: 'power2.out',
-    onUpdate() {
-      display.links = _tweenTopo.links
-      display.connectivity = _tweenTopo.connectivity
-    },
-    onComplete() {
-      display.links = _tweenTopo.links
-      display.connectivity = _tweenTopo.connectivity
-    }
-  })
-}, { deep: true, immediate: true })
-
-const links = computed(() => Math.round(display.links))
-const connectivity = computed(() => display.connectivity.toFixed(1))
-
-const connectivityColor = computed(() => {
-  const c = display.connectivity
-  if (c >= 80) return '#00ff88'
-  if (c >= 50) return '#facc15'
-  return '#ff3b3b'
-})
-
-const connectivityMsg = computed(() => {
-  const c = display.connectivity
-  if (c >= 85) return 'MESH STABLE / 强网'
-  if (c >= 50) return 'FRAGMENTING / 重连中'
-  return 'LINK DROPPED / 孤岛'
-})
-
-const maxLinks = computed(() => (frame.value?.uav_nodes?.length || 15) * 2.5)
 
 // 检测播放器循环回起点，清空积累的历史，避免短数据集的人为锯齿
 const _currentTick = computed(() => engine?.currentTick?.value ?? 0)
@@ -132,6 +364,17 @@ let attackEffectChart: echarts.ECharts | null = null
 
 const _tweenDelay = { value: 0 }
 
+function ensureChartsReady() {
+  if (pdrChartEl.value && !pdrChart) pdrChart = echarts.init(pdrChartEl.value)
+  if (tpChartEl.value && !tpChart) tpChart = echarts.init(tpChartEl.value)
+  if (delayChartEl.value && !delayChart) {
+    delayChart = echarts.init(delayChartEl.value)
+    delayChart.setOption(makeGaugeInitOption())
+  }
+  if (inferConfChartEl.value && !inferConfChart) inferConfChart = echarts.init(inferConfChartEl.value)
+  if (attackEffectChartEl.value && !attackEffectChart) attackEffectChart = echarts.init(attackEffectChartEl.value)
+}
+
 watch(() => qos.value.p99_latency_ms, (raw) => {
   gsap.to(_tweenDelay, {
     value: raw || 0,
@@ -145,26 +388,6 @@ watch(() => qos.value.p99_latency_ms, (raw) => {
     }
   })
 }, { immediate: true })
-
-const channelCounts = computed(() => {
-  if (!frame.value) return [0, 0, 0]
-  const counts = [0, 0, 0]
-  for (const uav of frame.value.uav_nodes) {
-    if (uav.channel >= 0 && uav.channel < 3) counts[uav.channel]++
-  }
-  return counts
-})
-
-const qAvail = computed(() => (qos.value.total_pdr * 100).toFixed(1))
-const qP99 = computed(() => qos.value.p99_latency_ms.toFixed(1))
-const qEE = computed(() => {
-  if (!frame.value) return '0.0'
-  const pwrs = frame.value.uav_nodes
-    .filter((u: any) => u.node_type !== 1)  // 排除黑飞节点
-    .map((u: any) => u.power !== undefined && u.power !== null ? u.power : 20)
-  if (pwrs.length === 0) return '0.0'
-  return (pwrs.reduce((a: number, b: number) => a + b, 0) / pwrs.length).toFixed(1)
-})
 
 // ★ 图表option函数增加辅助线透明度，使图表在暗色下更易读
 function makeLineOption(title: string, color: string, data: number[], labels: number[], unit: string = '', yRange?: [number, number]): echarts.EChartsOption {
@@ -366,6 +589,8 @@ function makeBarOption(title: string, color: string, categories: string[], data:
 }
 
 function updateCharts() {
+  ensureChartsReady()
+
   if (!frame.value) {
     pdrHistory.value = []
     tpHistory.value = []
@@ -376,9 +601,13 @@ function updateCharts() {
     return
   }
 
-  pdrHistory.value.push(qos.value.total_pdr * 100)
-  tpHistory.value.push(qos.value.throughput_mbps)
-  tickLabels.value.push(frame.value.tick)
+  const pdrValue = Number(qos.value.total_pdr)
+  const throughputValue = Number(qos.value.throughput_mbps)
+  const tickValue = Number(frame.value.tick)
+
+  pdrHistory.value.push(Number.isFinite(pdrValue) ? pdrValue * 100 : 0)
+  tpHistory.value.push(Number.isFinite(throughputValue) ? throughputValue : 0)
+  tickLabels.value.push(Number.isFinite(tickValue) ? tickValue : 0)
   if (pdrHistory.value.length > MAX_HISTORY) {
     pdrHistory.value.shift()
     tpHistory.value.shift()
@@ -388,6 +617,8 @@ function updateCharts() {
   if (currentAppMode.value === 'cooperative') {
     if (pdrChart) pdrChart.setOption(makeLineOption('PDR脉搏线 (%)', '#00f2ff', pdrHistory.value, tickLabels.value, '%', [0, 100]))
     if (tpChart) tpChart.setOption(makeLineOption('吞吐量波浪 (Mbps)', '#a855f7', tpHistory.value, tickLabels.value, 'M'))
+    pdrChart?.resize()
+    tpChart?.resize()
   } else {
     if (inferConfChart) {
       inferConfChart.setOption(
@@ -415,14 +646,7 @@ function updateCharts() {
 }
 
 function initCharts() {
-  if (pdrChartEl.value) pdrChart = echarts.init(pdrChartEl.value)
-  if (tpChartEl.value) tpChart = echarts.init(tpChartEl.value)
-  if (delayChartEl.value) {
-    delayChart = echarts.init(delayChartEl.value)
-    delayChart.setOption(makeGaugeInitOption())
-  }
-  if (inferConfChartEl.value) inferConfChart = echarts.init(inferConfChartEl.value)
-  if (attackEffectChartEl.value) attackEffectChart = echarts.init(attackEffectChartEl.value)
+  ensureChartsReady()
 }
 
 let resizeOb: ResizeObserver | null = null
@@ -454,7 +678,31 @@ onBeforeUnmount(() => {
 })
 
 watch(frame, updateCharts, { deep: true })
-watch([ncKeyNodes, ncAttackEffectMetrics, currentAppMode], updateCharts, { deep: true })
+watch([ncKeyNodes, ncAttackEffectMetrics, currentAppMode, currentScene], updateCharts, { deep: true })
+watch(currentAppMode, async () => {
+  await nextTick()
+  setTimeout(() => {
+    ensureChartsReady()
+    updateCharts()
+    pdrChart?.resize()
+    tpChart?.resize()
+    delayChart?.resize()
+    inferConfChart?.resize()
+    attackEffectChart?.resize()
+  }, 50)
+})
+watch(currentScene, async () => {
+  await nextTick()
+  setTimeout(() => {
+    ensureChartsReady()
+    updateCharts()
+    pdrChart?.resize()
+    tpChart?.resize()
+    delayChart?.resize()
+    inferConfChart?.resize()
+    attackEffectChart?.resize()
+  }, 50)
+})
 </script>
 
 <template>
@@ -498,24 +746,44 @@ watch([ncKeyNodes, ncAttackEffectMetrics, currentAppMode], updateCharts, { deep:
         <div class="section-title">恢复总览</div>
         <div class="coop-dashboard">
           <div class="dash-row">
+            <span class="dash-label">通信架构</span>
+            <span class="dash-value">{{ coopDashboard.communicationMode || coopModeSummary?.communicationMode || '—' }}</span>
+          </div>
+          <div class="dash-row">
             <span class="dash-label">恢复状态</span>
-            <span class="dash-value" :class="coopDashboard.recoveryStatus === 'recovered' ? 'val-green' : 'val-yellow'">{{ coopDashboard.recoveryStatus || '—' }}</span>
+            <span class="dash-value" :class="['completed', 'stable', 'recovered'].includes(coopDashboard.recoveryStatus) ? 'val-green' : coopDashboard.recoveryStatus === 'active' ? 'val-yellow' : 'val-red'">{{ coopDashboard.recoveryStatus || '—' }}</span>
           </div>
           <div class="dash-row">
             <span class="dash-label">当前阶段</span>
             <span class="dash-value">{{ coopDashboard.phase || '—' }}</span>
           </div>
           <div class="dash-row">
+            <span class="dash-label">当前 Leader</span>
+            <span class="dash-value">Node {{ coopDashboard.leaderNodeId ?? '—' }}</span>
+          </div>
+          <div class="dash-row">
+            <span class="dash-label">备份 Leader</span>
+            <span class="dash-value">{{ coopDashboard.backupLeaderId != null ? `Node ${coopDashboard.backupLeaderId}` : '—' }}</span>
+          </div>
+          <div class="dash-row">
+            <span class="dash-label">故障类型</span>
+            <span class="dash-value">{{ coopDashboard.failureType || coopModeSummary?.failureType || '—' }}</span>
+          </div>
+          <div class="dash-row">
+            <span class="dash-label">故障目标</span>
+            <span class="dash-value">{{ coopDashboard.failureTargetId != null ? `Node ${coopDashboard.failureTargetId}` : '—' }}</span>
+          </div>
+          <div class="dash-row">
             <span class="dash-label">响应时间</span>
-            <span class="dash-value">{{ coopDashboard.responseTimeSec?.toFixed(2) || '—' }} s</span>
+            <span class="dash-value">{{ fmtTime(coopResponseTimeSec) }}</span>
           </div>
           <div class="dash-row">
             <span class="dash-label">恢复时间</span>
-            <span class="dash-value">{{ coopDashboard.recoveryTimeSec?.toFixed(2) || '—' }} s</span>
+            <span class="dash-value">{{ fmtTime(coopRecoveryTimeSec) }}</span>
           </div>
           <div class="dash-row">
             <span class="dash-label">稳定时间</span>
-            <span class="dash-value">{{ coopDashboard.stabilizationTimeSec?.toFixed(2) || '—' }} s</span>
+            <span class="dash-value">{{ fmtTime(coopStabilizationTimeSec) }}</span>
           </div>
           <div class="dash-row">
             <span class="dash-label">领队存活</span>
@@ -525,26 +793,83 @@ watch([ncKeyNodes, ncAttackEffectMetrics, currentAppMode], updateCharts, { deep:
             <span class="dash-label">故障活跃</span>
             <span class="dash-value" :class="coopDashboard.failureActive ? 'val-red' : 'val-green'">{{ coopDashboard.failureActive ? '是' : '否' }}</span>
           </div>
+        </div>
+      </div>
+
+      <div v-if="coopDashboard" class="glass-panel chart-card">
+        <div class="section-title">恢复压力</div>
+        <div class="coop-dashboard">
           <div class="dash-row">
-            <span class="dash-label">最新动作</span>
-            <span class="dash-value">{{ coopDashboard.latestActionType || '—' }}</span>
+            <span class="dash-label">路由切换累计</span>
+            <span class="dash-value">{{ Number(coopDashboard?.routeChangeCount ?? coopDerivedMetricSnapshot?.routeChangeCount ?? 0).toFixed(0) }}</span>
+          </div>
+          <div class="dash-row">
+            <span class="dash-label">中继切换累计</span>
+            <span class="dash-value">{{ Number(coopDashboard?.relaySwitchCount ?? coopDerivedMetricSnapshot?.relaySwitchCount ?? 0).toFixed(0) }}</span>
+          </div>
+          <div class="dash-row">
+            <span class="dash-label">控制超时累计</span>
+            <span class="dash-value" :class="Number(coopDashboard?.controlDeadlineMissCount ?? coopDerivedMetricSnapshot?.controlDeadlineMissCount ?? 0) > 0 ? 'val-red' : 'val-green'">{{ Number(coopDashboard?.controlDeadlineMissCount ?? coopDerivedMetricSnapshot?.controlDeadlineMissCount ?? 0).toFixed(0) }}</span>
+          </div>
+          <div class="dash-row">
+            <span class="dash-label">路由压力分</span>
+            <span class="dash-value" :class="Number(coopDashboard?.routePressureScore ?? coopDerivedMetricSnapshot?.routePressureScore ?? 0) >= 0.6 ? 'val-red' : Number(coopDashboard?.routePressureScore ?? coopDerivedMetricSnapshot?.routePressureScore ?? 0) >= 0.3 ? 'val-yellow' : 'val-green'">{{ ((Number(coopDashboard?.routePressureScore ?? coopDerivedMetricSnapshot?.routePressureScore ?? 0)) * 100).toFixed(0) }}%</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="coopDashboard" class="glass-panel chart-card">
+        <div class="section-title">故障邻域快照</div>
+        <div class="coop-dashboard">
+          <div class="dash-row">
+            <span class="dash-label">邻域规模</span>
+            <span class="dash-value">{{ Number(coopDerivedMetricSnapshot?.failureNeighborhoodNodeCount ?? 0).toFixed(0) }} 节点</span>
+          </div>
+          <div class="dash-row">
+            <span class="dash-label">邻域 PDR</span>
+            <span class="dash-value">{{ coopDerivedMetricSnapshot?.failureNeighborhoodPdr != null ? ((Number(coopDerivedMetricSnapshot.failureNeighborhoodPdr) * 100).toFixed(1) + '%') : '—' }}</span>
+          </div>
+          <div class="dash-row">
+            <span class="dash-label">邻域吞吐</span>
+            <span class="dash-value">{{ coopDerivedMetricSnapshot?.failureNeighborhoodThroughputMbps != null ? (Number(coopDerivedMetricSnapshot.failureNeighborhoodThroughputMbps).toFixed(2) + ' Mbps') : '—' }}</span>
+          </div>
+          <div class="dash-row">
+            <span class="dash-label">邻域时延</span>
+            <span class="dash-value">{{ coopDerivedMetricSnapshot?.failureNeighborhoodDelayMs != null ? (Number(coopDerivedMetricSnapshot.failureNeighborhoodDelayMs).toFixed(1) + ' ms') : '—' }}</span>
+          </div>
+          <div class="dash-row">
+            <span class="dash-label">故障目标状态</span>
+            <span class="dash-value" :class="coopDerivedMetricSnapshot?.isFailureTargetFailed ? 'val-red' : 'val-green'">{{ coopDerivedMetricSnapshot?.isFailureTargetFailed ? '已失效' : '仍活跃' }}</span>
+          </div>
+          <div class="dash-row">
+            <span class="dash-label">目标节点 PDR</span>
+            <span class="dash-value">{{ coopDerivedMetricSnapshot?.failureTargetPdr != null ? ((Number(coopDerivedMetricSnapshot.failureTargetPdr) * 100).toFixed(1) + '%') : '—' }}</span>
+          </div>
+          <div class="dash-row">
+            <span class="dash-label">目标节点时延</span>
+            <span class="dash-value">{{ coopDerivedMetricSnapshot?.failureTargetDelayMs != null ? (Number(coopDerivedMetricSnapshot.failureTargetDelayMs).toFixed(1) + ' ms') : '—' }}</span>
           </div>
         </div>
       </div>
 
       <!-- ★ 故障/恢复事件时间线 -->
-      <div v-if="coopFailureEvents.length > 0 || coopRecoveryActions.length > 0" class="glass-panel chart-card">
+      <div v-if="coopDashboard" class="glass-panel chart-card">
         <div class="section-title">事件时间线</div>
         <div class="event-timeline">
           <div v-for="(evt, i) in coopFailureEvents.slice(0, 5)" :key="'f'+i" class="timeline-item failure-item">
             <span class="tl-time">{{ evt.time?.toFixed(1) }}s</span>
             <span class="tl-dot red-dot"></span>
-            <span class="tl-text">故障: {{ evt.failureType }} → Node {{ evt.targetNodeId }}</span>
+            <span class="tl-text">故障 {{ evt.failureType }} 命中 Node {{ evt.targetNodeId }} / {{ evt.targetRole || 'unknown' }}，状态 {{ evt.failureState || '—' }}，影响邻居 {{ evt.affectedNeighborCount ?? 0 }}、链路 {{ evt.affectedLinkCount ?? 0 }}。{{ evt.effectSummary || '' }}</span>
           </div>
           <div v-for="(act, i) in coopRecoveryActions.slice(0, 8)" :key="'r'+i" class="timeline-item recovery-item">
             <span class="tl-time">{{ act.time?.toFixed(1) }}s</span>
             <span class="tl-dot green-dot"></span>
-            <span class="tl-text">{{ act.actionType }}: {{ act.oldValue }} → {{ act.newValue }}</span>
+            <span class="tl-text">{{ act.actionType }} / 执行节点 {{ act.executorNodeId ?? '—' }} / {{ fmtRecoveryScope(act) }} / 原因 {{ act.triggerReason || '—' }} / 结果 {{ act.resultState || '—' }}</span>
+          </div>
+          <div v-if="coopFailureEvents.length === 0 && coopRecoveryActions.length === 0" class="timeline-item">
+            <span class="tl-time">—</span>
+            <span class="tl-dot cyan-dot"></span>
+            <span class="tl-text">合作模式时间线结果暂未展开到右栏，当前任务仍在恢复阶段。</span>
           </div>
         </div>
       </div>
@@ -560,12 +885,82 @@ watch([ncKeyNodes, ncAttackEffectMetrics, currentAppMode], updateCharts, { deep:
              <div style="font-size:10px; color:#64748b;">观测事件数</div>
           </div>
           <div style="text-align:center;">
+             <div style="color:#10b981; font-size:18px; font-weight:bold;">{{ ncObservedWindows.length || '—' }}</div>
+             <div style="font-size:10px; color:#64748b;">观测窗口数</div>
+          </div>
+          <div style="text-align:center;">
              <div style="color:#facc15; font-size:18px; font-weight:bold;">{{ ncLinkEvidence.length || '—' }}</div>
              <div style="font-size:10px; color:#64748b;">边证据数</div>
           </div>
           <div style="text-align:center;">
              <div style="color:#a855f7; font-size:18px; font-weight:bold;">{{ ncInferredEdges.length || '—' }}</div>
-             <div style="font-size:10px; color:#64748b;">推断边数</div>
+             <div style="font-size:10px; color:#64748b;">推断拓扑边</div>
+          </div>
+          <div style="text-align:center;">
+             <div style="color:#ff3b3b; font-size:18px; font-weight:bold;">{{ ncInferredNodes.length || '—' }}</div>
+             <div style="font-size:10px; color:#64748b;">推断隐匿节点</div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="ncRecentObservedEvents.length > 0" class="glass-panel chart-card">
+        <div class="section-title">最近观测事件</div>
+        <div class="event-timeline">
+          <div v-for="(evt, i) in ncRecentObservedEvents" :key="'obs-'+i" class="timeline-item">
+            <span class="tl-time">{{ fmtCompactTime(evt.eventTime) }}</span>
+            <span class="tl-dot" :class="evt.signalDetected === false ? 'red-dot' : 'cyan-dot'"></span>
+            <span class="tl-text">ObsNode {{ evt.observedNodeId }} / {{ evt.avgRxPowerDbm != null ? `${Number(evt.avgRxPowerDbm).toFixed(1)} dBm` : '功率无回传' }} / CH{{ evt.channelId ?? '—' }} / {{ evt.signalDetected === false ? `漏检 ${evt.missingReason || 'unknown'}` : '信号已捕获' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="ncWindowSummary.length > 0" class="glass-panel chart-card">
+        <div class="section-title">观测窗口摘要</div>
+        <div class="key-nodes-list">
+          <div v-for="(win, i) in ncWindowSummary" :key="'win-'+i" class="kn-row" :style="{ borderLeftColor: '#10b981' }">
+            <span class="kn-rank">{{ fmtCompactTime(win.windowStart) }}</span>
+            <span class="kn-id">ObsNode {{ win.observedNodeId }}</span>
+            <span class="kn-score" style="color:#10b981">{{ fmtRatio(win.windowConfidence) }}</span>
+          </div>
+        </div>
+        <div class="coop-dashboard">
+          <div v-for="(win, i) in ncWindowSummary.slice(0, 3)" :key="'ws-'+i" class="dash-row">
+            <span class="dash-label">{{ fmtCompactTime(win.windowStart) }} - {{ fmtCompactTime(win.windowEnd) }}</span>
+            <span class="dash-value">漏检 {{ fmtRatio(win.windowMissingRatio) }} / 证据 {{ fmtRatio(win.avgEvidenceStrength) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="ncLinkEvidenceTop.length > 0" class="glass-panel chart-card">
+        <div class="section-title">链路证据 Top-N</div>
+        <div class="event-timeline">
+          <div v-for="(edge, i) in ncLinkEvidenceTop" :key="'evi-'+i" class="timeline-item">
+            <span class="tl-time">{{ fmtCompactTime(edge.windowStart ?? edge.observedTime) }}</span>
+            <span class="tl-dot yellow-dot"></span>
+            <span class="tl-text">ObsNode {{ edge.srcObservedNodeId }} ↔ {{ edge.dstObservedNodeId }} / 证据 {{ fmtRatio(edge.evidenceStrength) }} / 置信 {{ fmtRatio(edge.edgeObservationConfidence) }} / 主方向 {{ edge.dominantDirection }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="ncInferredEdgesTop.length > 0" class="glass-panel chart-card">
+        <div class="section-title">推断拓扑边</div>
+        <div class="event-timeline">
+          <div v-for="(edge, i) in ncInferredEdgesTop" :key="'inf-'+i" class="timeline-item">
+            <span class="tl-time">{{ fmtCompactTime(edge.windowStart) }}</span>
+            <span class="tl-dot" :class="edge.edgeProbability >= 0.75 ? 'green-dot' : edge.edgeProbability >= 0.45 ? 'yellow-dot' : 'red-dot'"></span>
+            <span class="tl-text">ObsNode {{ edge.srcObservedNodeId }} → {{ edge.dstObservedNodeId }} / 概率 {{ fmtRatio(edge.edgeProbability) }} / 置信 {{ fmtRatio(edge.edgeConfidence) }} / {{ edge.edgeDynamicState }} / {{ edge.dominantDirection }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ★ 推断节点网络 -->
+      <div v-if="ncInferredNodesTop.length > 0" class="glass-panel chart-card">
+        <div class="section-title">隐匿节点推断 (Top-{{ Math.min(ncInferredNodesTop.length, 10) }})</div>
+        <div class="key-nodes-list">
+          <div v-for="(node, i) in ncInferredNodesTop" :key="'infnode-'+i" class="kn-row" :style="{ borderLeftColor: '#a855f7' }">
+            <span class="kn-rank">#{{ i+1 }}</span>
+            <span class="kn-id">Node {{ node.nodeId }}</span>
+            <span class="kn-score" style="font-weight:normal; font-size:10px;">{{ node.inferredRole }} / 置信 {{ fmtRatio(node.roleConfidence) }} <span v-if="node.anomalyScore > 0">/ 异常 {{ fmtRatio(node.anomalyScore) }}</span></span>
           </div>
         </div>
       </div>
@@ -578,6 +973,34 @@ watch([ncKeyNodes, ncAttackEffectMetrics, currentAppMode], updateCharts, { deep:
             <span class="kn-rank">#{{ kn.rank ?? (i+1) }}</span>
             <span class="kn-id">Node {{ kn.nodeId }}</span>
             <span class="kn-score" :style="{ color: i < 3 ? '#ff3b3b' : '#00f2ff' }">{{ (kn.score * 100).toFixed(1) }}%</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="ncKeyNodeBreakdown.length > 0" class="glass-panel chart-card">
+        <div class="section-title">关键节点拆解</div>
+        <div class="coop-dashboard">
+          <div v-for="(node, i) in ncKeyNodeBreakdown" :key="'break-'+i" class="dash-block">
+            <div class="dash-row">
+              <span class="dash-label">Node {{ node.nodeId }} / #{{ node.rank ?? i + 1 }}</span>
+              <span class="dash-value" :style="{ color: i === 0 ? '#ff3b3b' : '#00f2ff' }">{{ fmtRatio(node.score) }}</span>
+            </div>
+            <div class="dash-row subtle-row">
+              <span class="dash-label">加权度</span>
+              <span class="dash-value">{{ fmtRatio(node.weightedDegreeScore) }}</span>
+            </div>
+            <div class="dash-row subtle-row">
+              <span class="dash-label">关联边概率</span>
+              <span class="dash-value">{{ fmtRatio(node.avgIncidentProbability) }}</span>
+            </div>
+            <div class="dash-row subtle-row">
+              <span class="dash-label">关联边置信</span>
+              <span class="dash-value">{{ fmtRatio(node.avgIncidentConfidence) }}</span>
+            </div>
+            <div class="dash-row subtle-row">
+              <span class="dash-label">方法</span>
+              <span class="dash-value">{{ node.keyNodeMethod }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -604,12 +1027,30 @@ watch([ncKeyNodes, ncAttackEffectMetrics, currentAppMode], updateCharts, { deep:
               <span class="kn-score" :style="{ color: i === 0 ? '#ff3b3b' : '#facc15' }">{{ (rec.recommendedScore * 100).toFixed(1) }}%</span>
             </div>
           </div>
+          <div v-if="ncAttackRecommendations[0]" class="coop-dashboard">
+            <div class="dash-row subtle-row">
+              <span class="dash-label">推荐理由</span>
+              <span class="dash-value">{{ ncAttackRecommendations[0].recommendationReason || '—' }}</span>
+            </div>
+            <div class="dash-row subtle-row">
+              <span class="dash-label">结构分 / 证据分</span>
+              <span class="dash-value">{{ fmtRatio(ncAttackRecommendations[0].structureScore) }} / {{ fmtRatio(ncAttackRecommendations[0].evidenceSupportScore) }}</span>
+            </div>
+            <div class="dash-row subtle-row">
+              <span class="dash-label">因果分 / 损伤分</span>
+              <span class="dash-value">{{ fmtRatio(ncAttackRecommendations[0].causalSupportScore) }} / {{ fmtRatio(ncAttackRecommendations[0].postRemovalDamageScore) }}</span>
+            </div>
+          </div>
         </div>
 
         <!-- 打击计划摘要 -->
         <div v-if="ncAttackPlan" class="glass-panel chart-card">
           <div class="section-title" style="color:#ff6b6b;">打击计划摘要</div>
           <div class="coop-dashboard">
+            <div class="dash-row">
+              <span class="dash-label">打击类型</span>
+              <span class="dash-value">{{ ncAttackPlan.attackType || 'node_strike' }}</span>
+            </div>
             <div class="dash-row">
               <span class="dash-label">推荐目标</span>
               <span class="dash-value">Node {{ ncAttackPlan.recommendedObservedNodeId }}</span>
@@ -626,13 +1067,63 @@ watch([ncKeyNodes, ncAttackEffectMetrics, currentAppMode], updateCharts, { deep:
               <span class="dash-label">打击时间</span>
               <span class="dash-value">{{ fmtTime(ncAttackPlan.attackExecuteTime) }}</span>
             </div>
+            <div v-if="ncAttackPlan.strikeExecuteTime != null" class="dash-row">
+              <span class="dash-label">真实执行时刻</span>
+              <span class="dash-value">{{ fmtTime(ncAttackPlan.strikeExecuteTime) }}</span>
+            </div>
+            <div v-if="ncAttackPlan.strikeMode" class="dash-row">
+              <span class="dash-label">执行模式</span>
+              <span class="dash-value">{{ ncAttackPlan.strikeMode }}</span>
+            </div>
+            <div v-if="ncAttackPlan.executedObservedNodeId != null" class="dash-row">
+              <span class="dash-label">最终执行观测目标</span>
+              <span class="dash-value">Node {{ ncAttackPlan.executedObservedNodeId }}</span>
+            </div>
             <div v-if="ncAttackPlan.executedEntityNodeId != null" class="dash-row">
               <span class="dash-label">实际命中实体</span>
               <span class="dash-value" style="color:#ff3b3b;">Entity {{ ncAttackPlan.executedEntityNodeId }}</span>
             </div>
+            <div v-if="ncAttackPlan.evaluationWindowStart != null && ncAttackPlan.evaluationWindowEnd != null" class="dash-row">
+              <span class="dash-label">评估窗口</span>
+              <span class="dash-value">{{ fmtTime(ncAttackPlan.evaluationWindowStart) }} - {{ fmtTime(ncAttackPlan.evaluationWindowEnd) }}</span>
+            </div>
             <div v-if="ncAttackPlan.targetNeighborhoodSize != null" class="dash-row">
               <span class="dash-label">邻域规模</span>
               <span class="dash-value">{{ ncAttackPlan.targetNeighborhoodSize }} 节点</span>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="ncLatestTargetBinding" class="glass-panel chart-card">
+          <div class="section-title" style="color:#ff6b6b;">目标绑定结果</div>
+          <div class="coop-dashboard">
+            <div class="dash-row">
+              <span class="dash-label">观测目标</span>
+              <span class="dash-value">ObsNode {{ ncLatestTargetBinding.observedNodeId }}</span>
+            </div>
+            <div class="dash-row">
+              <span class="dash-label">绑定状态</span>
+              <span class="dash-value" :class="['confirmed', 'binding_success', 'stable'].includes(ncLatestTargetBinding.bindingStatus) ? 'val-green' : 'val-yellow'">{{ ncLatestTargetBinding.bindingStatus || '—' }}</span>
+            </div>
+            <div class="dash-row">
+              <span class="dash-label">绑定置信度</span>
+              <span class="dash-value">{{ fmtRatio(ncLatestTargetBinding.bindingConfidence) }}</span>
+            </div>
+            <div class="dash-row">
+              <span class="dash-label">轨迹状态</span>
+              <span class="dash-value">{{ ncLatestTargetBinding.isTrackStable ? '稳定' : '不稳定' }} / {{ ncLatestTargetBinding.isTrackActive ? '活跃' : '失活' }}</span>
+            </div>
+            <div class="dash-row">
+              <span class="dash-label">实体目标</span>
+              <span class="dash-value">{{ ncLatestTargetBinding.executedEntityNodeId != null ? `Entity ${ncLatestTargetBinding.executedEntityNodeId}` : '—' }}</span>
+            </div>
+            <div class="dash-row">
+              <span class="dash-label">真实关键目标</span>
+              <span class="dash-value" :class="ncLatestTargetBinding.isTrueCriticalTarget ? 'val-green' : 'val-red'">{{ ncLatestTargetBinding.isTrueCriticalTarget ? '是' : '否' }}</span>
+            </div>
+            <div class="dash-row" v-if="ncLatestTargetBinding.mismatchType">
+              <span class="dash-label">误配类型</span>
+              <span class="dash-value">{{ ncLatestTargetBinding.mismatchType }}</span>
             </div>
           </div>
         </div>
@@ -645,8 +1136,8 @@ watch([ncKeyNodes, ncAttackEffectMetrics, currentAppMode], updateCharts, { deep:
               <span class="tl-time">{{ evt.eventTime?.toFixed(1) }}s</span>
               <span class="tl-dot" :class="evt.isTrueTargetHit ? 'green-dot' : 'red-dot'"></span>
               <span class="tl-text">
-                {{ evt.attackType }} → ObsNode {{ evt.executedObservedNodeId }}
-                <span v-if="evt.isTrueTargetHit" style="color:#00ff88;"> ✓ 命中</span>
+                {{ evt.attackType }} / 推荐 ObsNode {{ evt.recommendedObservedNodeId }} / 执行 ObsNode {{ evt.executedObservedNodeId }} / 实体 {{ evt.executedEntityNodeId ?? '—' }} / {{ evt.nodeRemoved ? '节点已移除' : '未移除' }}
+                <span v-if="evt.isTrueTargetHit" style="color:#00ff88;"> ✓ 命中真实关键目标</span>
                 <span v-else style="color:#ff3b3b;"> ✗ {{ evt.targetMismatchType || '未命中' }}</span>
               </span>
             </div>
@@ -657,80 +1148,82 @@ watch([ncKeyNodes, ncAttackEffectMetrics, currentAppMode], updateCharts, { deep:
         <div v-if="ncAttackSummary" class="glass-panel chart-card">
           <div class="section-title" style="color:#ff6b6b;">打击效果评估</div>
           <div class="coop-dashboard">
-            <template v-if="ncAttackSummary.finalMetrics">
+            <template v-if="ncAttackGlobalFinalMetrics">
               <div class="dash-row">
-                <span class="dash-label">最终连通率</span>
-                <span class="dash-value">{{ ((ncAttackSummary.finalMetrics.connectivityRatio ?? 0) * 100).toFixed(1) }}%</span>
+                <span class="dash-label">全局最终连通率</span>
+                <span class="dash-value">{{ fmtRatio(ncAttackGlobalFinalMetrics.connectivityRatio) }}</span>
               </div>
               <div class="dash-row">
-                <span class="dash-label">最终 PDR</span>
-                <span class="dash-value">{{ ((ncAttackSummary.finalMetrics.pdr ?? 0) * 100).toFixed(1) }}%</span>
+                <span class="dash-label">全局最终 PDR</span>
+                <span class="dash-value">{{ fmtRatio(ncAttackGlobalFinalMetrics.pdr) }}</span>
               </div>
               <div class="dash-row">
-                <span class="dash-label">最终吞吐</span>
-                <span class="dash-value">{{ (ncAttackSummary.finalMetrics.throughputMbps ?? 0).toFixed(2) }} Mbps</span>
+                <span class="dash-label">全局最终吞吐</span>
+                <span class="dash-value">{{ Number(ncAttackGlobalFinalMetrics.throughputMbps ?? 0).toFixed(2) }} Mbps</span>
+              </div>
+              <div class="dash-row">
+                <span class="dash-label">全局最终时延</span>
+                <span class="dash-value">{{ Number(ncAttackGlobalFinalMetrics.delayMs ?? 0).toFixed(1) }} ms</span>
               </div>
             </template>
-            <template v-if="ncAttackSummary.recoverySummary">
+            <template v-if="ncAttackNeighborhoodFinalMetrics">
+              <div class="dash-row">
+                <span class="dash-label">目标邻域连通率</span>
+                <span class="dash-value">{{ fmtRatio(ncAttackNeighborhoodFinalMetrics.connectivityRatio) }}</span>
+              </div>
+              <div class="dash-row">
+                <span class="dash-label">目标邻域 PDR</span>
+                <span class="dash-value">{{ fmtRatio(ncAttackNeighborhoodFinalMetrics.pdr) }}</span>
+              </div>
+            </template>
+            <template v-if="ncAttackSummary.recoverySummary || ncAttackSummary.recovery_summary">
               <div class="dash-row">
                 <span class="dash-label">恢复进度</span>
-                <span class="dash-value" :class="(ncAttackSummary.recoverySummary.recoveryProgress ?? 0) >= 0.8 ? 'val-green' : 'val-yellow'">{{ ((ncAttackSummary.recoverySummary.recoveryProgress ?? 0) * 100).toFixed(0) }}%</span>
+                <span class="dash-value" :class="(Number(ncAttackSummary.recoverySummary?.recoveryProgress ?? ncAttackSummary.recovery_summary?.recovery_progress ?? 0)) >= 0.8 ? 'val-green' : 'val-yellow'">
+                  {{ ((Number(ncAttackSummary.recoverySummary?.recoveryProgress ?? ncAttackSummary.recovery_summary?.recovery_progress ?? 0)) * 100).toFixed(0) }}%
+                </span>
               </div>
               <div class="dash-row">
                 <span class="dash-label">损伤持续</span>
-                <span class="dash-value">{{ fmtTime(ncAttackSummary.recoverySummary.damageDuration) }}</span>
+                <span class="dash-value">{{ fmtTime(ncAttackSummary.recoverySummary?.damageDuration ?? ncAttackSummary.recovery_summary?.damage_duration) }}</span>
+              </div>
+              <div class="dash-row" v-if="(ncAttackSummary.recoverySummary?.actualAttackExecutionTime ?? ncAttackSummary.recovery_summary?.actual_attack_execution_time) != null">
+                <span class="dash-label">真实执行时刻</span>
+                <span class="dash-value">{{ fmtTime(ncAttackSummary.recoverySummary?.actualAttackExecutionTime ?? ncAttackSummary.recovery_summary?.actual_attack_execution_time) }}</span>
+              </div>
+              <div class="dash-row" v-if="(ncAttackSummary.recoverySummary?.recoveryCompletedAt ?? ncAttackSummary.recovery_summary?.recovery_completed_at) != null">
+                <span class="dash-label">恢复完成时刻</span>
+                <span class="dash-value">{{ fmtTime(ncAttackSummary.recoverySummary?.recoveryCompletedAt ?? ncAttackSummary.recovery_summary?.recovery_completed_at) }}</span>
               </div>
             </template>
+          </div>
+        </div>
+
+        <div v-if="ncAttackPhaseRows.length > 0" class="glass-panel chart-card">
+          <div class="section-title" style="color:#ff6b6b;">分阶段效果快照</div>
+          <div class="coop-dashboard">
+            <div v-for="row in ncAttackPhaseRows" :key="row.phase" class="dash-block">
+              <div class="dash-row">
+                <span class="dash-label">{{ row.phase }}</span>
+                <span class="dash-value">{{ row.global?.count ?? row.neighborhood?.count ?? 0 }} 样本</span>
+              </div>
+              <div class="dash-row subtle-row" v-if="row.global">
+                <span class="dash-label">全局连通 / PDR</span>
+                <span class="dash-value">{{ fmtRatio(row.global.connectivityRatio) }} / {{ fmtRatio(row.global.pdr) }}</span>
+              </div>
+              <div class="dash-row subtle-row" v-if="row.neighborhood">
+                <span class="dash-label">邻域连通 / PDR</span>
+                <span class="dash-value">{{ fmtRatio(row.neighborhood.connectivityRatio) }} / {{ fmtRatio(row.neighborhood.pdr) }}</span>
+              </div>
+              <div class="dash-row subtle-row" v-if="row.global">
+                <span class="dash-label">全局吞吐 / 时延</span>
+                <span class="dash-value">{{ Number(row.global.throughputMbps ?? 0).toFixed(2) }} Mbps / {{ Number(row.global.delayMs ?? 0).toFixed(1) }} ms</span>
+              </div>
+            </div>
           </div>
         </div>
       </template>
     </template>
-
-    <!-- 拓扑演化矩阵 (Topology Evolution Core) - 共享组件 -->
-    <div class="glass-panel topo-card">
-      <div class="section-title topo-title">
-        {{ currentAppMode === 'cooperative' ? '组网拓扑矩阵' : '推断拓扑受损矩阵' }}
-        <span class="topo-pulse" :style="{ backgroundColor: connectivityColor }"></span>
-      </div>
-      <div class="topo-content">
-        <!-- 连通率核心环 -->
-        <div class="topo-core">
-          <svg viewBox="0 0 100 100" class="core-ring">
-            <!-- 外部旋转圈 -->
-            <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(0,242,255,0.15)" stroke-width="2" stroke-dasharray="10 4" class="spin-slow" />
-            <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="6" />
-            <!-- 数据圆环 (周长 251.2) -->
-            <circle cx="50" cy="50" r="40" fill="none"
-              :stroke="connectivityColor"
-              stroke-width="6"
-              stroke-linecap="round"
-              :stroke-dasharray="`${display.connectivity * 2.512} 251.2`"
-              transform="rotate(135 50 50)"
-              :style="{ filter: `drop-shadow(0 0 6px ${connectivityColor})`, transition: 'all 0.5s ease' }" />
-          </svg>
-          <div class="core-val" :style="{ color: connectivityColor }">
-            {{ connectivity }}<span class="pct">%</span>
-          </div>
-        </div>
-
-        <!-- 幸存链路能级 -->
-        <div class="topo-stats">
-          <div class="stat-row">
-            <span class="label">活跃链路存活</span>
-            <span class="val" :style="{ color: connectivityColor, textShadow: `0 0 8px ${connectivityColor}` }">{{ links }} <span class="sub">链路</span></span>
-          </div>
-          <!-- 光剑式动态跳动能量条 -->
-          <div class="link-power-bar-wrapper">
-            <div class="power-bar-bg">
-              <div class="power-fill" :style="{ width: `${Math.min(100, (display.links / maxLinks) * 100)}%`, background: connectivityColor, boxShadow: `0 0 12px ${connectivityColor}` }"></div>
-            </div>
-            <!-- 网格装饰 -->
-            <div class="power-grid-overlay"></div>
-          </div>
-          <div class="status-msg" :style="{ color: connectivityColor }">{{ connectivityMsg }}</div>
-        </div>
-      </div>
-    </div>
 
   </aside>
 </template>
@@ -741,7 +1234,10 @@ watch([ncKeyNodes, ncAttackEffectMetrics, currentAppMode], updateCharts, { deep:
   flex-direction: column;
   gap: 8px;
   height: 100%;
-  overflow-y: auto;
+  min-height: 0;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
   padding-left: 4px;
 }
 
@@ -845,6 +1341,10 @@ watch([ncKeyNodes, ncAttackEffectMetrics, currentAppMode], updateCharts, { deep:
 .chart-card {
   padding: 10px;
   flex-shrink: 0;
+}
+
+.topo-detail-card {
+  border-left: 2px solid rgba(0, 242, 255, 0.35);
 }
 
 .chart-card:nth-child(1) {
@@ -1056,6 +1556,22 @@ watch([ncKeyNodes, ncAttackEffectMetrics, currentAppMode], updateCharts, { deep:
   font-family: var(--font-mono);
 }
 
+.dash-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.dash-block:last-child {
+  border-bottom: none;
+}
+
+.subtle-row {
+  background: rgba(255, 255, 255, 0.02);
+}
+
 .dash-label {
   font-size: 10px;
   color: var(--text-dim);
@@ -1107,12 +1623,16 @@ watch([ncKeyNodes, ncAttackEffectMetrics, currentAppMode], updateCharts, { deep:
   flex-shrink: 0;
 }
 
+.yellow-dot {
+  background: #facc15;
+  box-shadow: 0 0 8px #facc15, 0 0 16px #facc1560;
+}
+
 .tl-text {
   color: var(--text-secondary);
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.45;
 }
 
 /* ── 关键节点列表 ── */

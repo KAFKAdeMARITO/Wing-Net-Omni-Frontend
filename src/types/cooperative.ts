@@ -10,7 +10,7 @@ export interface CooperativeModeSummary {
   difficulty: string
   formation: string
   leaderNodeId: number
-  backupLeaderList: number[]
+  backupLeaderList: string | number[]
   distributedHopLimit: number
   failureType: string
   failureTargetId: number
@@ -22,15 +22,26 @@ export interface CooperativeModeSummary {
 
 /** cooperative.dashboard_snapshot */
 export interface CooperativeDashboardSnapshot {
+  time?: number
   phase: string
   operationMode: string
   communicationMode: string
   leaderNodeId: number
   backupLeaderId: number
   isLeaderAlive: boolean
+  routeChangeCount?: number
+  relaySwitchCount?: number
+  controlDeadlineMissCount?: number
+  routePressureScore?: number
   failureActive: boolean
   failureType: string
   failureTargetId: number
+  connectivity?: number
+  avgDegree?: number
+  pdr?: number
+  throughputMbps?: number
+  delayMs?: number
+  p99DelayMs?: number
   responseTimeSec: number
   recoveryTimeSec: number
   stabilizationTimeSec: number
@@ -40,6 +51,7 @@ export interface CooperativeDashboardSnapshot {
 
 /** cooperative.failure_timeline 中的单个事件 */
 export interface CooperativeFailureEvent {
+  eventId?: number
   time: number
   failureType: string
   targetNodeId: number
@@ -59,14 +71,15 @@ export interface CooperativeFailureTimeline {
 
 /** cooperative.recovery_timeline 中的单个动作 */
 export interface CooperativeRecoveryAction {
+  actionId?: number
   time: number
   phase: string
   communicationMode: string
   recoveryPolicy: string
   effectiveRecoveryPolicy: string
   triggerReason: string
-  executorNodeId: number
-  targetNodeIds: number[]
+  executorNodeId: number | null
+  targetNodeIds: string | number[] | null
   actionType: string
   oldValue: string
   newValue: string
@@ -90,9 +103,22 @@ export interface CooperativeMetricsSample {
   throughputMbps: number
   delayMs: number
   p99DelayMs: number
+  failureNeighborhoodPdr?: number | null
+  failureNeighborhoodThroughputMbps?: number | null
+  failureNeighborhoodDelayMs?: number | null
+  failureNeighborhoodNodeCount?: number
+  failureTargetId?: number
+  isFailureTargetFailed?: boolean
+  failureTargetPdr?: number | null
+  failureTargetThroughputMbps?: number | null
+  failureTargetDelayMs?: number | null
   activeNodeCount: number
   leaderNodeId: number
   isLeaderAlive: boolean
+  routeChangeCount?: number
+  relaySwitchCount?: number
+  controlDeadlineMissCount?: number
+  routePressureScore?: number
   responseTimeSec: number
   recoveryTimeSec: number
   stabilizationTimeSec: number

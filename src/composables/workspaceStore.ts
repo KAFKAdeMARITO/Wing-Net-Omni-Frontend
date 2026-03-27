@@ -13,6 +13,7 @@ import type {
 } from '../types'
 import type { CooperativeData } from '../types/cooperative'
 import type { NonCooperativeData } from '../types/nonCooperative'
+import { normalizeFrontendResponse } from '../adapters/frontendResponseAdapter'
 
 // ── 空状态工厂 ──
 function emptyShared(): SharedData {
@@ -66,30 +67,21 @@ export function useWorkspaceStore() {
 
   /** 从 /api/results/<task_id>/frontend 响应填充 */
   function loadFromFrontendResponse(data: FrontendResponseData) {
+    const normalized = normalizeFrontendResponse(data)
+
     // meta
-    if (data.meta) {
-      runMeta.taskId = data.meta.taskId
-      runMeta.operationMode = data.meta.operationMode
-      runMeta.sceneType = data.meta.sceneType
-      runMeta.difficulty = data.meta.difficulty
-      runMeta.formation = data.meta.formation
-      runMeta.communicationMode = data.meta.communicationMode
+    if (normalized.meta) {
+      runMeta.taskId = normalized.meta.taskId
+      runMeta.operationMode = normalized.meta.operationMode
+      runMeta.sceneType = normalized.meta.sceneType
+      runMeta.difficulty = normalized.meta.difficulty
+      runMeta.formation = normalized.meta.formation
+      runMeta.communicationMode = normalized.meta.communicationMode
     }
 
-    // shared
-    if (data.shared) {
-      Object.assign(workspaceData.shared, data.shared)
-    }
-
-    // cooperative
-    if (data.cooperative && Object.keys(data.cooperative).length > 0) {
-      Object.assign(workspaceData.cooperative, data.cooperative)
-    }
-
-    // non_cooperative
-    if (data.non_cooperative && Object.keys(data.non_cooperative).length > 0) {
-      Object.assign(workspaceData.nonCooperative, data.non_cooperative)
-    }
+    Object.assign(workspaceData.shared, emptyShared(), normalized.shared || {})
+    Object.assign(workspaceData.cooperative, emptyCooperative(), normalized.cooperative || {})
+    Object.assign(workspaceData.nonCooperative, emptyNonCooperative(), normalized.non_cooperative || {})
   }
 
   /** 清空所有数据 */
