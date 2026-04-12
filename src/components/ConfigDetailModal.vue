@@ -288,7 +288,7 @@ const sections = [
   max-width: 90%;
   height: 550px;
   background: var(--bg-panel, #0a0e27);
-  border: 1px solid var(--glass-border, rgba(0, 242, 255, 0.2));
+  border: 1px solid var(--glass-border, rgba(35, 215, 230, 0.2));
   box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
@@ -306,7 +306,7 @@ const sections = [
 }
 .modal-header h3 {
   margin: 0;
-  color: var(--cyan, #00f2ff);
+  color: var(--cyan, #23d7e6);
   font-family: var(--font-display);
   font-size: 1.1rem;
   display: flex; align-items: center; gap: 8px;
@@ -341,7 +341,7 @@ const sections = [
   color: var(--text-primary);
 }
 .nav-item.active {
-  background: rgba(0, 242, 255, 0.1);
+  background: rgba(35, 215, 230, 0.1);
   color: var(--cyan);
   border-left-color: var(--cyan);
 }
@@ -432,14 +432,14 @@ small {
   color: var(--text-primary);
 }
 .btn.primary {
-  background: rgba(0, 242, 255, 0.15);
+  background: rgba(35, 215, 230, 0.15);
   border: 1px solid var(--cyan);
   color: var(--cyan);
-  box-shadow: 0 0 10px rgba(0, 242, 255, 0.1);
+  box-shadow: 0 0 10px rgba(35, 215, 230, 0.1);
 }
 .btn.primary:hover {
   background: var(--cyan);
   color: #000;
-  box-shadow: 0 0 20px rgba(0, 242, 255, 0.4);
+  box-shadow: 0 0 20px rgba(35, 215, 230, 0.4);
 }
 </style>

@@ -23,10 +23,13 @@ const backendSceneNames: Record<string, string> = {
   'open-field': '开阔野地'
 }
 const sceneName = computed(() => {
+  if (currentScene.value) {
+    return sceneNames[currentScene.value] || '未知环境'
+  }
   if (runMeta.sceneType) {
     return backendSceneNames[runMeta.sceneType] || runMeta.sceneType
   }
-  return sceneNames[currentScene.value] || '未知环境'
+  return '未知环境'
 })
 const modeName = computed(() => currentAppMode.value === 'cooperative' ? '合作场景推演' : '非合作侦察对抗')
 
@@ -162,9 +165,9 @@ const ncAttackPlan = computed(() => workspaceData.nonCooperative?.attack?.plan)
   height: 100%;
   background: linear-gradient(90deg,
     transparent,
-    rgba(0, 242, 255, 0.03),
-    rgba(0, 242, 255, 0.05),
-    rgba(0, 242, 255, 0.03),
+    rgba(35, 215, 230, 0.03),
+    rgba(35, 215, 230, 0.05),
+    rgba(35, 215, 230, 0.03),
     transparent);
   animation: scan-line-h 6s linear infinite;  /* ★ 减速 */
 }
@@ -193,8 +196,8 @@ const ncAttackPlan = computed(() => workspaceData.nonCooperative?.attack?.plan)
 }
 
 .back-btn {
-  background: rgba(0, 242, 255, 0.1);
-  border: 1px solid rgba(0, 242, 255, 0.3);
+  background: rgba(35, 215, 230, 0.1);
+  border: 1px solid rgba(111, 159, 245, 0.24);
   color: var(--cyan);
   padding: 6px 14px;
   border-radius: 16px;
@@ -211,7 +214,7 @@ const ncAttackPlan = computed(() => workspaceData.nonCooperative?.attack?.plan)
   background: var(--cyan-dim);
   border-color: var(--cyan);
   transform: translateX(-2px);
-  box-shadow: 0 0 10px rgba(0, 242, 255, 0.2);
+  box-shadow: 0 0 10px rgba(35, 215, 230, 0.16);
 }
 
 .logo {
@@ -222,7 +225,7 @@ const ncAttackPlan = computed(() => workspaceData.nonCooperative?.attack?.plan)
 
 .logo-icon {
   color: var(--cyan);
-  filter: drop-shadow(0 0 8px rgba(0, 242, 255, 0.5));
+  filter: drop-shadow(0 0 8px rgba(35, 215, 230, 0.28));
 }
 
 /* ★ 去掉 spin，只保留呼吸——更专业 */
@@ -235,8 +238,8 @@ const ncAttackPlan = computed(() => workspaceData.nonCooperative?.attack?.plan)
 }
 
 @keyframes logo-breathe {
-  0%, 100% { filter: drop-shadow(0 0 4px rgba(0, 242, 255, 0.4)); }
-  50% { filter: drop-shadow(0 0 14px rgba(0, 242, 255, 0.9)); }
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(35, 215, 230, 0.24)); }
+  50% { filter: drop-shadow(0 0 14px rgba(35, 215, 230, 0.45)); }
 }
 
 @keyframes core-pulse {
@@ -281,8 +284,8 @@ const ncAttackPlan = computed(() => workspaceData.nonCooperative?.attack?.plan)
   gap: 6px;
   padding: 5px 12px;
   border-radius: 20px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(16, 24, 39, 0.18);
+  border: 1px solid rgba(111, 159, 245, 0.12);
   font-family: var(--font-body);
   font-size: 11px;
   color: var(--text-secondary);
@@ -291,17 +294,17 @@ const ncAttackPlan = computed(() => workspaceData.nonCooperative?.attack?.plan)
 }
 
 .chip:hover {
-  background: rgba(0, 242, 255, 0.05);
-  border-color: rgba(0, 242, 255, 0.15);
+  background: rgba(35, 215, 230, 0.05);
+  border-color: rgba(111, 159, 245, 0.16);
 }
 
 .mode-chip.danger-mode {
-  border-color: rgba(255, 59, 59, 0.3);
-  background: rgba(255, 59, 59, 0.08);
-  color: #ff3c3c;
+  border-color: rgba(239, 68, 68, 0.28);
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--red);
 }
 .mode-chip.danger-mode .chip-value {
-  color: #ff3c3c;
+  color: var(--red);
 }
 
 .chip-label {
@@ -362,8 +365,8 @@ const ncAttackPlan = computed(() => workspaceData.nonCooperative?.attack?.plan)
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 700;
-  color: #ffffff; /* 核心变白，发光留给 shadow */
-  text-shadow: 0 0 8px rgba(0, 242, 255, 0.8), 0 0 16px rgba(0, 242, 255, 0.4); /* 收紧内层发光，扩大外层柔光 */
+  color: var(--text-primary);
+  text-shadow: 0 0 8px rgba(35, 215, 230, 0.35), 0 0 16px rgba(35, 215, 230, 0.18);
   line-height: 1;
 }
 </style>

@@ -396,7 +396,7 @@ function makeLineOption(title: string, color: string, data: number[], labels: nu
     title: {
       text: title,
       textStyle: {
-        color: '#94a3b8',
+        color: '#b6c5d4',
         fontFamily: 'JetBrains Mono, Noto Sans SC, monospace',
         fontSize: 10,          // ★ 微大以增强可读性
         fontWeight: 'normal'
@@ -405,29 +405,29 @@ function makeLineOption(title: string, color: string, data: number[], labels: nu
     },
     tooltip: {                  // ★ 新增: 悬浮提示
       trigger: 'axis',
-      backgroundColor: 'rgba(8, 12, 32, 0.9)',
-      borderColor: 'rgba(0, 242, 255, 0.2)',
+      backgroundColor: 'rgba(18, 27, 45, 0.94)',
+      borderColor: 'rgba(91, 141, 239, 0.2)',
       textStyle: {
-        color: '#e2e8f0',
+        color: '#dbe7f3',
         fontFamily: 'JetBrains Mono, Noto Sans SC, monospace',
         fontSize: 11
       },
       axisPointer: {
-        lineStyle: { color: 'rgba(0, 242, 255, 0.3)' }
+        lineStyle: { color: 'rgba(18, 214, 227, 0.28)' }
       }
     },
     xAxis: {
       type: 'category', data: labels,
-      axisLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
+      axisLine: { lineStyle: { color: 'rgba(75,100,120,0.12)' } },
       axisLabel: { show: false }, axisTick: { show: false }
     },
     yAxis: {
       type: 'value',
       min: yRange ? yRange[0] : undefined,
       max: yRange ? yRange[1] : undefined,
-      splitLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } },
+      splitLine: { lineStyle: { color: 'rgba(75,100,120,0.08)' } },
       axisLabel: {
-        color: '#64748b',
+        color: '#8fa1b7',
         fontSize: 9,
         fontFamily: 'JetBrains Mono, Noto Sans SC, monospace',
         formatter: (val: number) => `${val}${unit}`
@@ -454,14 +454,14 @@ function makeLineOption(title: string, color: string, data: number[], labels: nu
 }
 
 function getDelayColor(v: number): string {
-  if (v <= 200) return '#00ff88'    // 优秀
-  if (v <= 500) return '#00f2ff'    // 正常
-  if (v <= 1000) return '#facc15'   // 警告
-  return '#ff3b3b'                  // 危险
+  if (v <= 200) return '#22c55e'
+  if (v <= 500) return '#23d7e6'
+  if (v <= 1000) return '#eab308'
+  return '#ef4444'
 }
 
 function makeGaugeInitOption(): echarts.EChartsOption {
-  const initColor = '#00f2ff'
+  const initColor = '#23d7e6'
   return {
     backgroundColor: 'transparent',
     animation: false,
@@ -469,7 +469,7 @@ function makeGaugeInitOption(): echarts.EChartsOption {
       {
         type: 'gauge', center: ['50%', '55%'], radius: '95%',
         startAngle: 220, endAngle: -40, min: 0, max: 2000,
-        axisLine: { lineStyle: { width: 1, color: [[1, 'rgba(0,242,255,0.15)']] } },
+        axisLine: { lineStyle: { width: 1, color: [[1, 'rgba(35,215,230,0.16)']] } },
         axisTick: { show: false }, splitLine: { show: false },
         axisLabel: { show: false }, pointer: { show: false }, detail: { show: false }
       },
@@ -479,19 +479,19 @@ function makeGaugeInitOption(): echarts.EChartsOption {
         axisLine: {
           lineStyle: {
             width: 14,
-            color: [[0.10, '#00ff88'], [0.25, '#00f2ff'], [0.50, '#facc15'], [1, '#ff3b3b']],
-            shadowColor: 'rgba(0,242,255,0.3)', shadowBlur: 16
+            color: [[0.10, '#22c55e'], [0.25, '#23d7e6'], [0.50, '#eab308'], [1, '#ef4444']],
+            shadowColor: 'rgba(35,215,230,0.24)', shadowBlur: 16
           }
         },
-        axisTick: { distance: -20, length: 6, lineStyle: { color: 'rgba(255,255,255,0.2)', width: 1 } },
-        splitLine: { distance: -24, length: 12, lineStyle: { color: 'rgba(255,255,255,0.4)', width: 2, shadowColor: 'rgba(0,242,255,0.5)', shadowBlur: 6 } },
-        axisLabel: { distance: -32, color: '#64748b', fontSize: 8, fontFamily: 'JetBrains Mono, Noto Sans SC, monospace', formatter: (v: number) => v % 500 === 0 ? v + '' : '' },
+        axisTick: { distance: -20, length: 6, lineStyle: { color: 'rgba(255,255,255,0.22)', width: 1 } },
+        splitLine: { distance: -24, length: 12, lineStyle: { color: 'rgba(255,255,255,0.36)', width: 2, shadowColor: 'rgba(35,215,230,0.25)', shadowBlur: 6 } },
+        axisLabel: { distance: -32, color: '#8fa1b7', fontSize: 8, fontFamily: 'JetBrains Mono, Noto Sans SC, monospace', formatter: (v: number) => v % 500 === 0 ? v + '' : '' },
         pointer: { show: false }, detail: { show: false }
       },
       {
         type: 'gauge', center: ['50%', '55%'], radius: '72%',
         startAngle: 220, endAngle: -40, min: 0, max: 2000,
-        axisLine: { lineStyle: { width: 4, color: [[1, 'rgba(255,255,255,0.03)']] } },
+        axisLine: { lineStyle: { width: 4, color: [[1, 'rgba(255,255,255,0.05)']] } },
         axisTick: { show: false }, splitLine: { show: false },
         axisLabel: { show: false }, pointer: { show: false }, detail: { show: false },
         progress: {
@@ -513,9 +513,9 @@ function makeGaugeInitOption(): echarts.EChartsOption {
         },
         anchor: {
           show: true, showAbove: true, size: 12,
-          itemStyle: { borderWidth: 2, borderColor: initColor, color: '#0f172a', shadowColor: initColor, shadowBlur: 14 }
+          itemStyle: { borderWidth: 2, borderColor: initColor, color: '#162033', shadowColor: initColor, shadowBlur: 14 }
         },
-        title: { show: true, offsetCenter: [0, '38%'], fontSize: 8, color: '#475569', fontFamily: 'JetBrains Mono, Noto Sans SC, monospace', fontWeight: 'normal' },
+        title: { show: true, offsetCenter: [0, '38%'], fontSize: 8, color: '#8fa1b7', fontFamily: 'JetBrains Mono, Noto Sans SC, monospace', fontWeight: 'normal' },
         detail: {
           valueAnimation: false,
           fontSize: 14, fontWeight: 'bold',
@@ -524,7 +524,7 @@ function makeGaugeInitOption(): echarts.EChartsOption {
           formatter: (v: number) => '{val|' + v.toFixed(1) + '}{unit| ms}',
           rich: {
             val: { fontSize: 14, fontWeight: 'bold', fontFamily: 'JetBrains Mono, Noto Sans SC, monospace', color: initColor, textShadowColor: initColor, textShadowBlur: 14, padding: [0, 2, 0, 0] },
-            unit: { fontSize: 9, color: '#64748b', fontFamily: 'JetBrains Mono, Noto Sans SC, monospace', padding: [6, 0, 0, 2] }
+            unit: { fontSize: 9, color: '#8fa1b7', fontFamily: 'JetBrains Mono, Noto Sans SC, monospace', padding: [6, 0, 0, 2] }
           }
         },
         data: [{ value: 0, name: '' }]
@@ -532,7 +532,7 @@ function makeGaugeInitOption(): echarts.EChartsOption {
       {
         type: 'gauge', center: ['50%', '55%'], radius: '30%',
         startAngle: 0, endAngle: 360, min: 0, max: 1,
-        axisLine: { lineStyle: { width: 1, color: [[1, 'rgba(0,242,255,0.08)']] } },
+        axisLine: { lineStyle: { width: 1, color: [[1, 'rgba(35,215,230,0.08)']] } },
         axisTick: { show: false }, splitLine: { show: false },
         axisLabel: { show: false }, pointer: { show: false }, detail: { show: false }
       }
@@ -569,12 +569,12 @@ function makeBarOption(title: string, color: string, categories: string[], data:
     grid: { top: 30, right: 15, bottom: 20, left: 40 },
     title: {
       text: title,
-      textStyle: { color: '#94a3b8', fontSize: 10, fontFamily: 'monospace', fontWeight: 'normal' },
+      textStyle: { color: '#b6c5d4', fontSize: 10, fontFamily: 'monospace', fontWeight: 'normal' },
       left: 4, top: 4
     },
-    tooltip: { trigger: 'axis', backgroundColor: 'rgba(8, 12, 32, 0.9)', borderColor: color, textStyle: { color: '#e2e8f0', fontSize: 11 } },
-    xAxis: { type: 'category', data: categories, axisLabel: { color: '#64748b', fontSize: 9 } },
-    yAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } }, axisLabel: { color: '#64748b', fontSize: 9 } },
+    tooltip: { trigger: 'axis', backgroundColor: 'rgba(18, 27, 45, 0.94)', borderColor: color, textStyle: { color: '#dbe7f3', fontSize: 11 } },
+    xAxis: { type: 'category', data: categories, axisLabel: { color: '#7b90a3', fontSize: 9 } },
+    yAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(75,100,120,0.08)' } }, axisLabel: { color: '#7b90a3', fontSize: 9 } },
     series: [{
       type: 'bar', data: data, barWidth: '40%',
       itemStyle: {
@@ -595,8 +595,8 @@ function updateCharts() {
     pdrHistory.value = []
     tpHistory.value = []
     tickLabels.value = []
-    if (pdrChart) pdrChart.setOption(makeLineOption('PDR脉搏线 (%)', '#00f2ff', [], []))
-    if (tpChart) tpChart.setOption(makeLineOption('吞吐量波浪 (Mbps)', '#a855f7', [], []))
+    if (pdrChart) pdrChart.setOption(makeLineOption('PDR脉搏线 (%)', '#23d7e6', [], []))
+    if (tpChart) tpChart.setOption(makeLineOption('吞吐量波浪 (Mbps)', '#8e82ff', [], []))
     updateDelayGauge(0)
     return
   }
@@ -615,8 +615,8 @@ function updateCharts() {
   }
 
   if (currentAppMode.value === 'cooperative') {
-    if (pdrChart) pdrChart.setOption(makeLineOption('PDR脉搏线 (%)', '#00f2ff', pdrHistory.value, tickLabels.value, '%', [0, 100]))
-    if (tpChart) tpChart.setOption(makeLineOption('吞吐量波浪 (Mbps)', '#a855f7', tpHistory.value, tickLabels.value, 'M'))
+    if (pdrChart) pdrChart.setOption(makeLineOption('PDR脉搏线 (%)', '#23d7e6', pdrHistory.value, tickLabels.value, '%', [0, 100]))
+    if (tpChart) tpChart.setOption(makeLineOption('吞吐量波浪 (Mbps)', '#8e82ff', tpHistory.value, tickLabels.value, 'M'))
     pdrChart?.resize()
     tpChart?.resize()
   } else {
@@ -624,7 +624,7 @@ function updateCharts() {
       inferConfChart.setOption(
         makeBarOption(
           '推断核心节点可信度 (%)',
-          '#facc15',
+          '#eab308',
           ncInferChartData.value.map(item => item.label),
           ncInferChartData.value.map(item => item.value)
         )
@@ -634,7 +634,7 @@ function updateCharts() {
       attackEffectChart.setOption(
         makeLineOption(
           '打击效能评估 (连通率)',
-          '#ff3b3b',
+          '#ef4444',
           ncAttackEffectSeries.value.map(item => item.connectivity),
           ncAttackEffectSeries.value.map(item => item.time),
           '%',
@@ -881,24 +881,24 @@ watch(currentScene, async () => {
         <div class="section-title">观测质量评测</div>
         <div class="obs-metrics" style="display:flex; justify-content:space-around; padding: 10px 0;">
           <div style="text-align:center;">
-             <div style="color:#00f2ff; font-size:18px; font-weight:bold;">{{ ncObservedEvents.length || '—' }}</div>
-             <div style="font-size:10px; color:#64748b;">观测事件数</div>
+             <div style="color:var(--cyan); font-size:18px; font-weight:bold;">{{ ncObservedEvents.length || '—' }}</div>
+             <div style="font-size:10px; color:var(--text-dim);">观测事件数</div>
           </div>
           <div style="text-align:center;">
-             <div style="color:#10b981; font-size:18px; font-weight:bold;">{{ ncObservedWindows.length || '—' }}</div>
-             <div style="font-size:10px; color:#64748b;">观测窗口数</div>
+             <div style="color:var(--green); font-size:18px; font-weight:bold;">{{ ncObservedWindows.length || '—' }}</div>
+             <div style="font-size:10px; color:var(--text-dim);">观测窗口数</div>
           </div>
           <div style="text-align:center;">
-             <div style="color:#facc15; font-size:18px; font-weight:bold;">{{ ncLinkEvidence.length || '—' }}</div>
-             <div style="font-size:10px; color:#64748b;">边证据数</div>
+             <div style="color:var(--yellow); font-size:18px; font-weight:bold;">{{ ncLinkEvidence.length || '—' }}</div>
+             <div style="font-size:10px; color:var(--text-dim);">边证据数</div>
           </div>
           <div style="text-align:center;">
-             <div style="color:#a855f7; font-size:18px; font-weight:bold;">{{ ncInferredEdges.length || '—' }}</div>
-             <div style="font-size:10px; color:#64748b;">推断拓扑边</div>
+             <div style="color:var(--purple); font-size:18px; font-weight:bold;">{{ ncInferredEdges.length || '—' }}</div>
+             <div style="font-size:10px; color:var(--text-dim);">推断拓扑边</div>
           </div>
           <div style="text-align:center;">
-             <div style="color:#ff3b3b; font-size:18px; font-weight:bold;">{{ ncInferredNodes.length || '—' }}</div>
-             <div style="font-size:10px; color:#64748b;">推断隐匿节点</div>
+             <div style="color:var(--red); font-size:18px; font-weight:bold;">{{ ncInferredNodes.length || '—' }}</div>
+             <div style="font-size:10px; color:var(--text-dim);">推断隐匿节点</div>
           </div>
         </div>
       </div>
@@ -917,10 +917,10 @@ watch(currentScene, async () => {
       <div v-if="ncWindowSummary.length > 0" class="glass-panel chart-card">
         <div class="section-title">观测窗口摘要</div>
         <div class="key-nodes-list">
-          <div v-for="(win, i) in ncWindowSummary" :key="'win-'+i" class="kn-row" :style="{ borderLeftColor: '#10b981' }">
+          <div v-for="(win, i) in ncWindowSummary" :key="'win-'+i" class="kn-row" :style="{ borderLeftColor: 'var(--green)' }">
             <span class="kn-rank">{{ fmtCompactTime(win.windowStart) }}</span>
             <span class="kn-id">ObsNode {{ win.observedNodeId }}</span>
-            <span class="kn-score" style="color:#10b981">{{ fmtRatio(win.windowConfidence) }}</span>
+            <span class="kn-score" style="color:var(--green)">{{ fmtRatio(win.windowConfidence) }}</span>
           </div>
         </div>
         <div class="coop-dashboard">
@@ -957,7 +957,7 @@ watch(currentScene, async () => {
       <div v-if="ncInferredNodesTop.length > 0" class="glass-panel chart-card">
         <div class="section-title">隐匿节点推断 (Top-{{ Math.min(ncInferredNodesTop.length, 10) }})</div>
         <div class="key-nodes-list">
-          <div v-for="(node, i) in ncInferredNodesTop" :key="'infnode-'+i" class="kn-row" :style="{ borderLeftColor: '#a855f7' }">
+          <div v-for="(node, i) in ncInferredNodesTop" :key="'infnode-'+i" class="kn-row" :style="{ borderLeftColor: 'var(--purple)' }">
             <span class="kn-rank">#{{ i+1 }}</span>
             <span class="kn-id">Node {{ node.nodeId }}</span>
             <span class="kn-score" style="font-weight:normal; font-size:10px;">{{ node.inferredRole }} / 置信 {{ fmtRatio(node.roleConfidence) }} <span v-if="node.anomalyScore > 0">/ 异常 {{ fmtRatio(node.anomalyScore) }}</span></span>
@@ -969,10 +969,10 @@ watch(currentScene, async () => {
       <div v-if="ncKeyNodes.length > 0" class="glass-panel chart-card">
         <div class="section-title">关键节点识别 (Top-{{ Math.min(ncKeyNodes.length, 10) }})</div>
         <div class="key-nodes-list">
-          <div v-for="(kn, i) in ncKeyNodes.slice(0, 10)" :key="kn.nodeId" class="kn-row" :style="{ borderLeftColor: i < 3 ? '#ff3b3b' : i < 6 ? '#facc15' : '#00f2ff' }">
+          <div v-for="(kn, i) in ncKeyNodes.slice(0, 10)" :key="kn.nodeId" class="kn-row" :style="{ borderLeftColor: i < 3 ? 'var(--red)' : i < 6 ? 'var(--yellow)' : 'var(--cyan)' }">
             <span class="kn-rank">#{{ kn.rank ?? (i+1) }}</span>
             <span class="kn-id">Node {{ kn.nodeId }}</span>
-            <span class="kn-score" :style="{ color: i < 3 ? '#ff3b3b' : '#00f2ff' }">{{ (kn.score * 100).toFixed(1) }}%</span>
+            <span class="kn-score" :style="{ color: i < 3 ? 'var(--red)' : 'var(--cyan)' }">{{ (kn.score * 100).toFixed(1) }}%</span>
           </div>
         </div>
       </div>
@@ -983,7 +983,7 @@ watch(currentScene, async () => {
           <div v-for="(node, i) in ncKeyNodeBreakdown" :key="'break-'+i" class="dash-block">
             <div class="dash-row">
               <span class="dash-label">Node {{ node.nodeId }} / #{{ node.rank ?? i + 1 }}</span>
-              <span class="dash-value" :style="{ color: i === 0 ? '#ff3b3b' : '#00f2ff' }">{{ fmtRatio(node.score) }}</span>
+              <span class="dash-value" :style="{ color: i === 0 ? 'var(--red)' : 'var(--cyan)' }">{{ fmtRatio(node.score) }}</span>
             </div>
             <div class="dash-row subtle-row">
               <span class="dash-label">加权度</span>
@@ -1019,12 +1019,12 @@ watch(currentScene, async () => {
       <template v-if="hasAttackResults">
         <!-- 推荐打击目标 -->
         <div v-if="ncAttackRecommendations.length > 0" class="glass-panel chart-card">
-          <div class="section-title" style="color:#ff6b6b;">推荐打击目标</div>
+          <div class="section-title" style="color:#ff8585;">推荐打击目标</div>
           <div class="key-nodes-list">
-            <div v-for="(rec, i) in ncAttackRecommendations.slice(0, 5)" :key="i" class="kn-row" :style="{ borderLeftColor: i === 0 ? '#ff3b3b' : '#facc15' }">
+            <div v-for="(rec, i) in ncAttackRecommendations.slice(0, 5)" :key="i" class="kn-row" :style="{ borderLeftColor: i === 0 ? 'var(--red)' : 'var(--yellow)' }">
               <span class="kn-rank">#{{ rec.recommendationRank ?? (i+1) }}</span>
               <span class="kn-id">ObsNode {{ rec.recommendedObservedNodeId }}</span>
-              <span class="kn-score" :style="{ color: i === 0 ? '#ff3b3b' : '#facc15' }">{{ (rec.recommendedScore * 100).toFixed(1) }}%</span>
+              <span class="kn-score" :style="{ color: i === 0 ? 'var(--red)' : 'var(--yellow)' }">{{ (rec.recommendedScore * 100).toFixed(1) }}%</span>
             </div>
           </div>
           <div v-if="ncAttackRecommendations[0]" class="coop-dashboard">
@@ -1045,7 +1045,7 @@ watch(currentScene, async () => {
 
         <!-- 打击计划摘要 -->
         <div v-if="ncAttackPlan" class="glass-panel chart-card">
-          <div class="section-title" style="color:#ff6b6b;">打击计划摘要</div>
+          <div class="section-title" style="color:#ff8585;">打击计划摘要</div>
           <div class="coop-dashboard">
             <div class="dash-row">
               <span class="dash-label">打击类型</span>
@@ -1081,7 +1081,7 @@ watch(currentScene, async () => {
             </div>
             <div v-if="ncAttackPlan.executedEntityNodeId != null" class="dash-row">
               <span class="dash-label">实际命中实体</span>
-              <span class="dash-value" style="color:#ff3b3b;">Entity {{ ncAttackPlan.executedEntityNodeId }}</span>
+              <span class="dash-value" style="color:var(--red);">Entity {{ ncAttackPlan.executedEntityNodeId }}</span>
             </div>
             <div v-if="ncAttackPlan.evaluationWindowStart != null && ncAttackPlan.evaluationWindowEnd != null" class="dash-row">
               <span class="dash-label">评估窗口</span>
@@ -1095,7 +1095,7 @@ watch(currentScene, async () => {
         </div>
 
         <div v-if="ncLatestTargetBinding" class="glass-panel chart-card">
-          <div class="section-title" style="color:#ff6b6b;">目标绑定结果</div>
+          <div class="section-title" style="color:#ff8585;">目标绑定结果</div>
           <div class="coop-dashboard">
             <div class="dash-row">
               <span class="dash-label">观测目标</span>
@@ -1130,15 +1130,15 @@ watch(currentScene, async () => {
 
         <!-- 打击事件时间线 -->
         <div v-if="ncAttackEvents.length > 0" class="glass-panel chart-card">
-          <div class="section-title" style="color:#ff6b6b;">打击事件时间线</div>
+          <div class="section-title" style="color:#ff8585;">打击事件时间线</div>
           <div class="event-timeline">
             <div v-for="(evt, i) in ncAttackEvents.slice(0, 8)" :key="i" class="timeline-item failure-item">
               <span class="tl-time">{{ evt.eventTime?.toFixed(1) }}s</span>
               <span class="tl-dot" :class="evt.isTrueTargetHit ? 'green-dot' : 'red-dot'"></span>
               <span class="tl-text">
                 {{ evt.attackType }} / 推荐 ObsNode {{ evt.recommendedObservedNodeId }} / 执行 ObsNode {{ evt.executedObservedNodeId }} / 实体 {{ evt.executedEntityNodeId ?? '—' }} / {{ evt.nodeRemoved ? '节点已移除' : '未移除' }}
-                <span v-if="evt.isTrueTargetHit" style="color:#00ff88;"> ✓ 命中真实关键目标</span>
-                <span v-else style="color:#ff3b3b;"> ✗ {{ evt.targetMismatchType || '未命中' }}</span>
+                <span v-if="evt.isTrueTargetHit" style="color:var(--green);"> ✓ 命中真实关键目标</span>
+                <span v-else style="color:var(--red);"> ✗ {{ evt.targetMismatchType || '未命中' }}</span>
               </span>
             </div>
           </div>
@@ -1146,7 +1146,7 @@ watch(currentScene, async () => {
 
         <!-- 打击前后对比摘要 -->
         <div v-if="ncAttackSummary" class="glass-panel chart-card">
-          <div class="section-title" style="color:#ff6b6b;">打击效果评估</div>
+          <div class="section-title" style="color:#ff8585;">打击效果评估</div>
           <div class="coop-dashboard">
             <template v-if="ncAttackGlobalFinalMetrics">
               <div class="dash-row">
@@ -1200,7 +1200,7 @@ watch(currentScene, async () => {
         </div>
 
         <div v-if="ncAttackPhaseRows.length > 0" class="glass-panel chart-card">
-          <div class="section-title" style="color:#ff6b6b;">分阶段效果快照</div>
+          <div class="section-title" style="color:#ff8585;">分阶段效果快照</div>
           <div class="coop-dashboard">
             <div v-for="row in ncAttackPhaseRows" :key="row.phase" class="dash-block">
               <div class="dash-row">
@@ -1344,7 +1344,7 @@ watch(currentScene, async () => {
 }
 
 .topo-detail-card {
-  border-left: 2px solid rgba(0, 242, 255, 0.35);
+  border-left: 2px solid rgba(35, 215, 230, 0.28);
 }
 
 .chart-card:nth-child(1) {
@@ -1361,12 +1361,12 @@ watch(currentScene, async () => {
 
 @keyframes ambient-glow {
   from {
-    border-color: rgba(0, 242, 255, 0.06);
-    box-shadow: 0 0 8px rgba(0, 242, 255, 0.02) inset;
+    border-color: rgba(35, 215, 230, 0.08);
+    box-shadow: 0 0 8px rgba(35, 215, 230, 0.03) inset;
   }
   to {
-    border-color: rgba(0, 242, 255, 0.18);
-    box-shadow: 0 0 16px rgba(0, 242, 255, 0.08) inset;
+    border-color: rgba(35, 215, 230, 0.18);
+    box-shadow: 0 0 16px rgba(35, 215, 230, 0.08) inset;
   }
 }
 
@@ -1396,7 +1396,7 @@ watch(currentScene, async () => {
   height: 1px;
   background: linear-gradient(90deg,
     transparent,
-    rgba(0, 242, 255, 0.6),
+    rgba(35, 215, 230, 0.6),
     transparent
   );
   animation: scan-line 3s ease-in-out infinite;
@@ -1425,26 +1425,26 @@ watch(currentScene, async () => {
 }
 
 .dot-green {
-  background: #00ff88;
-  box-shadow: 0 0 8px #00ff88, 0 0 16px #00ff8860;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green), 0 0 16px rgba(34, 197, 94, 0.38);
   animation: pulse-dot 2s infinite;
 }
 
 .dot-cyan {
-  background: #00f2ff;
-  box-shadow: 0 0 8px #00f2ff, 0 0 16px #00f2ff60;
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan), 0 0 16px rgba(35, 215, 230, 0.38);
   animation: pulse-dot 2s infinite;
 }
 
 .dot-yellow {
-  background: #facc15;
-  box-shadow: 0 0 8px #facc15, 0 0 16px #facc1560;
+  background: var(--yellow);
+  box-shadow: 0 0 8px var(--yellow), 0 0 16px rgba(234, 179, 8, 0.38);
   animation: pulse-dot 1.2s infinite;
 }
 
 .dot-red {
-  background: #ff3b3b;
-  box-shadow: 0 0 8px #ff3b3b, 0 0 16px #ff3b3b60;
+  background: var(--red);
+  box-shadow: 0 0 8px var(--red), 0 0 16px rgba(239, 68, 68, 0.38);
   animation: pulse-dot 0.6s infinite;
 }
 
@@ -1455,7 +1455,7 @@ watch(currentScene, async () => {
 
 .gauge-label {
   font-size: 9px;
-  color: #64748b;
+  color: var(--text-dim);
   letter-spacing: 1.5px;
   flex: 1;
   font-weight: 500;                           /* ★ 加粗 */
@@ -1470,28 +1470,28 @@ watch(currentScene, async () => {
 }
 
 .zone-safe {
-  color: #00ff88;
-  background: rgba(0, 255, 136, 0.1);
-  border: 1px solid rgba(0, 255, 136, 0.2);
+  color: var(--green);
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.2);
 }
 
 .zone-normal {
-  color: #00f2ff;
-  background: rgba(0, 242, 255, 0.1);
-  border: 1px solid rgba(0, 242, 255, 0.2);
+  color: var(--cyan);
+  background: rgba(35, 215, 230, 0.1);
+  border: 1px solid rgba(35, 215, 230, 0.2);
 }
 
 .zone-warn {
-  color: #facc15;
+  color: var(--yellow);
   background: rgba(250, 204, 21, 0.1);
   border: 1px solid rgba(250, 204, 21, 0.2);
   animation: blink-warn 1.5s infinite;
 }
 
 .zone-crit {
-  color: #ff3b3b;
-  background: rgba(255, 59, 59, 0.15);
-  border: 1px solid rgba(255, 59, 59, 0.3);
+  color: var(--red);
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
   animation: blink-warn 0.8s infinite;
 }
 
@@ -1583,9 +1583,9 @@ watch(currentScene, async () => {
   color: var(--text-primary);
 }
 
-.val-green { color: #00ff88; text-shadow: 0 0 6px rgba(0,255,136,0.3); }
-.val-yellow { color: #facc15; }
-.val-red { color: #ff3b3b; text-shadow: 0 0 6px rgba(255,59,59,0.3); }
+.val-green { color: var(--green); text-shadow: 0 0 6px rgba(34,197,94,0.3); }
+.val-yellow { color: var(--yellow); }
+.val-red { color: var(--red); text-shadow: 0 0 6px rgba(239,68,68,0.3); }
 
 /* ── 事件时间线 ── */
 .event-timeline {
@@ -1607,8 +1607,8 @@ watch(currentScene, async () => {
   border-radius: 2px;
 }
 
-.failure-item { background: rgba(255, 59, 59, 0.06); }
-.recovery-item { background: rgba(0, 255, 136, 0.04); }
+.failure-item { background: rgba(239, 68, 68, 0.06); }
+.recovery-item { background: rgba(34, 197, 94, 0.05); }
 
 .tl-time {
   color: var(--text-dim);
@@ -1624,8 +1624,8 @@ watch(currentScene, async () => {
 }
 
 .yellow-dot {
-  background: #facc15;
-  box-shadow: 0 0 8px #facc15, 0 0 16px #facc1560;
+  background: var(--yellow);
+  box-shadow: 0 0 8px var(--yellow), 0 0 16px rgba(234,179,8,0.38);
 }
 
 .tl-text {
@@ -1648,7 +1648,7 @@ watch(currentScene, async () => {
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
-  border-left: 3px solid #00f2ff;
+  border-left: 3px solid var(--cyan);
   background: rgba(0, 0, 0, 0.15);
   border-radius: 0 2px 2px 0;
   font-family: var(--font-mono);

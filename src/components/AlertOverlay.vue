@@ -43,8 +43,8 @@ watch(frame, (f) => {
 }
 
 @keyframes flashAnim {
-  0% { background: rgba(255, 59, 59, 0.2); }
-  50% { background: rgba(255, 59, 59, 0.08); }
+  0% { background: rgba(239, 68, 68, 0.2); }
+  50% { background: rgba(239, 68, 68, 0.08); }
   100% { background: transparent; }
 }
 
@@ -53,12 +53,12 @@ watch(frame, (f) => {
   inset: 0;
   z-index: 9999;
   pointer-events: none;
-  box-shadow: inset 0 0 80px rgba(255, 59, 59, 0.15);
+  box-shadow: inset 0 0 80px rgba(239, 68, 68, 0.15);
   animation: borderPulse 1s ease infinite;
 }
 
 @keyframes borderPulse {
-  0%, 100% { box-shadow: inset 0 0 60px rgba(255, 59, 59, 0.1); }
-  50% { box-shadow: inset 0 0 100px rgba(255, 59, 59, 0.2); }
+  0%, 100% { box-shadow: inset 0 0 60px rgba(239, 68, 68, 0.1); }
+  50% { box-shadow: inset 0 0 100px rgba(239, 68, 68, 0.2); }
 }
 </style>

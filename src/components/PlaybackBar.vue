@@ -108,7 +108,7 @@ onBeforeUnmount(() => {
       <span class="play-icon" v-else>▶</span>
       <!-- ★ 新增外圈进度环 -->
       <svg class="play-ring" viewBox="0 0 40 40" v-if="isPlaying">
-        <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(0,242,255,0.2)"
+        <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(35,215,230,0.2)"
           stroke-width="1.5" stroke-dasharray="2 4" class="ring-spin"/>
       </svg>
     </button>
@@ -243,21 +243,21 @@ onBeforeUnmount(() => {
   height: 38px;
   font-size: 16px;
   position: relative;
-  border: 1.5px solid rgba(0, 242, 255, 0.3);
+  border: 1.5px solid rgba(35, 215, 230, 0.24);
   transition: all 0.2s ease;
 }
 
 .play-btn:hover {
-  background: rgba(0, 242, 255, 0.1);
+  background: rgba(35, 215, 230, 0.1);
   border-color: var(--cyan);
-  box-shadow: 0 0 16px rgba(0, 242, 255, 0.2);
+  box-shadow: 0 0 16px rgba(35, 215, 230, 0.2);
   transform: scale(1.05);
 }
 
 .play-btn.playing {
   border-color: var(--green);
   animation: none; /* 去除 breathe-glow */
-  box-shadow: 0 0 12px rgba(0, 255, 136, 0.15);
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.15);
 }
 
 .play-ring {
@@ -382,7 +382,7 @@ onBeforeUnmount(() => {
   color: var(--cyan);
   background: var(--cyan-dim);
   border-color: var(--cyan);
-  box-shadow: 0 0 8px rgba(0, 242, 255, 0.15);
+  box-shadow: 0 0 8px rgba(35, 215, 230, 0.15);
   font-weight: 600;
 }
 </style>

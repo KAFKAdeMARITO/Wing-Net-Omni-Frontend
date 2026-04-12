@@ -24,7 +24,7 @@ onMounted(() => {
     { name: 'Topology', max: 1 },
   ]
 
-  const colors = ['#00f2ff', '#ffaa00', '#64748b']
+  const colors = ['#23d7e6', '#f59e0b', '#8fa1b7']
   const series = benchmarkData.map((d, i) => ({
     value: [d.throughput, d.latency, d.jitter, d.pdr, d.topology_stability],
     name: d.algorithm,
@@ -39,13 +39,13 @@ onMounted(() => {
     backgroundColor: 'transparent',
     title: {
       text: '算法性能对比雷达图',
-      textStyle: { color: '#94a3b8', fontFamily: 'Noto Sans SC', fontSize: 14 },
+      textStyle: { color: '#b6c5d4', fontFamily: 'Noto Sans SC', fontSize: 14 },
       left: 'center', top: 10
     },
     legend: {
       data: benchmarkData.map(d => d.algorithm),
       bottom: 10,
-      textStyle: { color: '#94a3b8', fontFamily: 'JetBrains Mono, Noto Sans SC', fontSize: 11 },
+      textStyle: { color: '#b6c5d4', fontFamily: 'JetBrains Mono, Noto Sans SC', fontSize: 11 },
       itemWidth: 14,
       itemHeight: 8
     },
@@ -56,15 +56,15 @@ onMounted(() => {
       splitNumber: 4,
       shape: 'polygon',
       axisName: {
-        color: '#94a3b8',
+        color: '#b6c5d4',
         fontFamily: 'JetBrains Mono, Noto Sans SC',
         fontSize: 10
       },
       splitArea: {
-        areaStyle: { color: ['rgba(0,242,255,0.02)', 'rgba(0,242,255,0.04)', 'rgba(0,242,255,0.02)', 'rgba(0,242,255,0.04)'] }
+        areaStyle: { color: ['rgba(35,215,230,0.02)', 'rgba(35,215,230,0.04)', 'rgba(35,215,230,0.02)', 'rgba(35,215,230,0.04)'] }
       },
-      splitLine: { lineStyle: { color: 'rgba(0,242,255,0.1)' } },
-      axisLine: { lineStyle: { color: 'rgba(0,242,255,0.15)' } }
+      splitLine: { lineStyle: { color: 'rgba(35,215,230,0.1)' } },
+      axisLine: { lineStyle: { color: 'rgba(35,215,230,0.15)' } }
     },
     series: [{
       type: 'radar',
@@ -73,8 +73,8 @@ onMounted(() => {
     tooltip: {
       trigger: 'item',
       backgroundColor: 'rgba(10,14,39,0.95)',
-      borderColor: 'rgba(0,242,255,0.2)',
-      textStyle: { color: '#e2e8f0', fontFamily: 'JetBrains Mono, Noto Sans SC', fontSize: 11 }
+      borderColor: 'rgba(35,215,230,0.2)',
+      textStyle: { color: '#e4edf7', fontFamily: 'JetBrains Mono, Noto Sans SC', fontSize: 11 }
     }
   })
 })
@@ -168,8 +168,8 @@ onBeforeUnmount(() => {
 .lab-conclusion {
   margin-top: 12px;
   padding: 12px;
-  background: rgba(0, 242, 255, 0.03);
-  border: 1px solid rgba(0, 242, 255, 0.1);
+  background: rgba(35, 215, 230, 0.03);
+  border: 1px solid rgba(35, 215, 230, 0.1);
   border-radius: var(--radius-sm);
 }
 

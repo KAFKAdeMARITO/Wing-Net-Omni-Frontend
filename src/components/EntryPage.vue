@@ -100,7 +100,7 @@ function startMode(mode: AppMode) {
   width: 100vw;
   height: 100vh;
   background: var(--bg-deep);
-  color: #fff;
+  color: var(--text-primary);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -112,7 +112,7 @@ function startMode(mode: AppMode) {
 .entry-bg {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: radial-gradient(circle at center, rgba(0, 242, 255, 0.05) 0%, transparent 60%);
+  background: radial-gradient(circle at center, rgba(35, 215, 230, 0.05) 0%, transparent 60%);
   z-index: 1;
   pointer-events: none;
 }
@@ -154,7 +154,7 @@ function startMode(mode: AppMode) {
   position: absolute;
   inset: 2px;
   border-radius: 10px;
-  background: var(--bg-deep);
+  background: var(--bg-primary);
 }
 
 .logo-icon::before {
@@ -230,14 +230,14 @@ h2::before {
 
 .scene-card:hover {
   transform: translateY(-5px);
-  background: rgba(0, 242, 255, 0.05);
-  border-color: rgba(0, 242, 255, 0.3);
+  background: rgba(35, 215, 230, 0.05);
+  border-color: rgba(35, 215, 230, 0.24);
 }
 
 .scene-card.active {
-  background: rgba(0, 242, 255, 0.1);
+  background: rgba(35, 215, 230, 0.1);
   border-color: var(--cyan);
-  box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
+  box-shadow: 0 0 20px rgba(35, 215, 230, 0.2);
 }
 
 .scene-icon {
@@ -248,12 +248,12 @@ h2::before {
 .scene-card h3 {
   font-size: 16px;
   margin: 0;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .scene-desc {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
 }
@@ -285,7 +285,7 @@ h2::before {
 }
 
 .mode-card.cooperative .mode-bg {
-  background: radial-gradient(circle at bottom right, rgba(0, 242, 255, 0.3), transparent);
+  background: radial-gradient(circle at bottom right, rgba(35, 215, 230, 0.24), transparent);
 }
 
 .mode-card.non-cooperative .mode-bg {
@@ -298,7 +298,7 @@ h2::before {
 
 .mode-card.cooperative:hover {
   border-color: var(--cyan);
-  box-shadow: 0 10px 30px rgba(0, 242, 255, 0.15);
+  box-shadow: 0 10px 30px rgba(35, 215, 230, 0.15);
 }
 
 .mode-card.non-cooperative:hover {
@@ -327,18 +327,18 @@ h2::before {
 .mode-card h3 {
   font-size: 28px;
   margin: 0;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .mode-card p {
   font-size: 15px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
   line-height: 1.6;
   margin: 0 0 20px 0;
 }
 
 .mode-card p strong {
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .launch-btn {

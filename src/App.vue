@@ -96,13 +96,13 @@ function startResizeRight(e: MouseEvent) {
 
 function onIntroComplete() {
   showIntro.value = false
-  // 确保回放从 frame 0 暂停开始，避免闪烁
   engine.pause()
   engine.seek(0)
-  // Trigger staggered panel reveal after intro
-  requestAnimationFrame(() => {
-    panelsRevealed.value = true
-  })
+  if (currentAppMode.value !== 'entry') {
+    requestAnimationFrame(() => {
+      panelsRevealed.value = true
+    })
+  }
 }
 
 provide('engine', engine)
@@ -116,6 +116,18 @@ watch(currentFormation, () => {
   selectedUAVId.value = null
   selectedUAV.value = null
   console.log(`[WingNet] 阵型切换，清空旧推演数据`)
+})
+
+watch(currentAppMode, (mode) => {
+  if (mode === 'entry') {
+    panelsRevealed.value = false
+    return
+  }
+  if (!showIntro.value) {
+    requestAnimationFrame(() => {
+      panelsRevealed.value = true
+    })
+  }
 })
 
 watch(
@@ -170,6 +182,9 @@ onMounted(async () => {
 
 <template>
   <div class="app-root">
+    <!-- 首次进入网站时的开场动画 -->
+    <IntroSequence v-if="showIntro" @complete="onIntroComplete" />
+
     <!-- 模式选择入口页 -->
     <Transition name="fade">
       <EntryPage v-if="currentAppMode === 'entry'" />
@@ -177,9 +192,6 @@ onMounted(async () => {
 
     <!-- 工作区主体 -->
     <div class="workspace-container" v-show="currentAppMode !== 'entry'">
-      <!-- 开场动画 -->
-      <IntroSequence v-if="showIntro" @complete="onIntroComplete" />
-
       <!-- 全局告警覆层 -->
       <AlertOverlay :active="showAlert" />
 

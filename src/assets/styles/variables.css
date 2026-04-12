@@ -1,48 +1,55 @@
 /* ═══════════════════════════════════════════════════
    翼网全境 Wing-Net Omni — Design System Tokens
-   军用/重工级数字基建指挥舱 (Nebula Dark Theme)
+   提亮暗舱主题 (Lifted Dark Theme)
    ═══════════════════════════════════════════════════ */
 
 :root {
   /* ── 主题底色 ── */
-  --bg-deep:        #040714;
-  --bg-primary:     #0a0e27;
-  --bg-secondary:   #0f1535;
-  --bg-panel:       rgba(10, 14, 39, 0.85);
-  --bg-card:        rgba(15, 21, 53, 0.75);
-  --bg-hover:       rgba(0, 242, 255, 0.06);
+  --bg-deep:        #162033;
+  --bg-primary:     #1c2940;
+  --bg-secondary:   #24334d;
+  --bg-panel:       rgba(28, 41, 64, 0.9);
+  --bg-card:        rgba(36, 51, 77, 0.84);
+  --bg-hover:       rgba(35, 215, 230, 0.1);
 
   /* ── 毛玻璃 Glassmorphism ── */
-  --glass-bg:       rgba(10, 14, 39, 0.65);
-  --glass-border:   rgba(0, 242, 255, 0.12);
+  --glass-bg:       rgba(34, 49, 74, 0.8);
+  --glass-border:   rgba(111, 159, 245, 0.2);
   --glass-blur:     20px;
-  --glass-shadow:   0 8px 32px rgba(0, 0, 0, 0.45);
+  --glass-shadow:   0 10px 32px rgba(0, 0, 0, 0.3);
 
   /* ── 状态配色 ── */
-  --cyan:           #00f2ff;
-  --cyan-dim:       rgba(0, 242, 255, 0.3);
-  --cyan-glow:      0 0 20px rgba(0, 242, 255, 0.4);
-  --green:          #00ff88;
-  --green-dim:      rgba(0, 255, 136, 0.3);
-  --green-glow:     0 0 20px rgba(0, 255, 136, 0.4);
-  --orange:         #ffaa00;
-  --orange-dim:     rgba(255, 170, 0, 0.3);
-  --orange-glow:    0 0 20px rgba(255, 170, 0, 0.4);
-  --red:            #ff3b3b;
-  --red-dim:        rgba(255, 59, 59, 0.3);
-  --red-glow:       0 0 20px rgba(255, 59, 59, 0.5);
+  --cyan:           #23d7e6;
+  --cyan-dim:       rgba(35, 215, 230, 0.22);
+  --cyan-glow:      0 0 18px rgba(35, 215, 230, 0.24);
+  --green:          #22c55e;
+  --green-dim:      rgba(34, 197, 94, 0.16);
+  --green-glow:     0 0 18px rgba(34, 197, 94, 0.2);
+  --orange:         #f59e0b;
+  --orange-dim:     rgba(245, 158, 11, 0.18);
+  --orange-glow:    0 0 18px rgba(245, 158, 11, 0.18);
+  --red:            #ef4444;
+  --red-dim:        rgba(239, 68, 68, 0.16);
+  --red-glow:       0 0 18px rgba(239, 68, 68, 0.2);
 
   /* ── 辅助色 ── */
-  --purple:         #a855f7;
-  --purple-dim:     rgba(168, 85, 247, 0.3);
-  --blue:           #3b82f6;
-  --yellow:         #fbbf24;
+  --purple:         #8e82ff;
+  --purple-dim:     rgba(142, 130, 255, 0.18);
+  --blue:           #5b8def;
+  --yellow:         #eab308;
 
   /* ── 文字 ── */
-  --text-primary:   #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-dim:       #64748b;
-  --text-cyan:      #00f2ff;
+  --text-primary:   #e4edf7;
+  --text-secondary: #b6c5d4;
+  --text-dim:       #8fa1b7;
+  --text-cyan:      #23d7e6;
+  --text-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.35);
+
+  /* ── 演示/截图增强 ── */
+  --panel-border-strong: rgba(111, 159, 245, 0.2);
+  --panel-fill-strong: rgba(30, 45, 70, 0.92);
+  --focus-ring: 0 0 0 1px rgba(35, 215, 230, 0.18), 0 0 16px rgba(35, 215, 230, 0.12);
+  --crt-overlay-opacity: 0;
 
   /* ── 字体 ── */
   /* 统一使用 JetBrains Mono 以保持风格一致，同时保留变量名以便未来可能得调整 */

@@ -103,10 +103,10 @@ const avgPower = computed(() => {
 
 const healthColor = computed(() => {
   const s = healthScore.value
-  if (s >= 90) return '#00ff88'
-  if (s >= 75) return '#00f2ff'
-  if (s >= 60) return '#ffaa00'
-  return '#ff3b3b'
+  if (s >= 90) return '#22c55e'
+  if (s >= 75) return '#23d7e6'
+  if (s >= 60) return '#f59e0b'
+  return '#ef4444'
 })
 
 // UAV list
@@ -116,7 +116,7 @@ const uavList = computed(() => {
 })
 
 const channelLabels = ['CH1', 'CH2', 'CH3']
-const channelColors = ['#00f2ff', '#a855f7', '#00ff88']
+const channelColors = ['#23d7e6', '#8e82ff', '#22c55e']
 
 const simConfig = reactive({
   swarm_size: 15,
@@ -354,14 +354,14 @@ function handleExecuteAttack() {
           <div class="form-group">
             <label class="waypoint-label">
               起点 
-              <span class="picker-btn" :class="{ active: interactionState.mode === 'setStart' }" @click="interactionState.mode = interactionState.mode === 'setStart' ? 'none' : 'setStart'" title="在地图上点击选择">📍选点</span>
+              <span class="picker-btn point-picker-btn" :class="{ active: interactionState.mode === 'setStart' }" @click="interactionState.mode = interactionState.mode === 'setStart' ? 'none' : 'setStart'" title="在地图上点击选择">📍选点</span>
             </label>
             <input v-model="missionWaypoints.start" type="text" class="glass-select" placeholder="0,0,30" />
           </div>
           <div class="form-group">
             <label class="waypoint-label">
               终点 
-              <span class="picker-btn" :class="{ active: interactionState.mode === 'setTarget' }" @click="interactionState.mode = interactionState.mode === 'setTarget' ? 'none' : 'setTarget'" title="在地图上点击选择">🎯选点</span>
+              <span class="picker-btn point-picker-btn" :class="{ active: interactionState.mode === 'setTarget' }" @click="interactionState.mode = interactionState.mode === 'setTarget' ? 'none' : 'setTarget'" title="在地图上点击选择">🎯选点</span>
             </label>
             <input v-model="missionWaypoints.target" type="text" class="glass-select" placeholder="500,500,30" />
           </div>
@@ -597,7 +597,7 @@ function handleExecuteAttack() {
             <span class="stat-label">PDR</span>
             <span class="stat-value green" id="m-pdr">{{ pdrPct }}%</span>
           </div>
-          <div class="metric-item">
+          <div class="metric-item delay-metric">
             <span class="stat-label">P99时延</span>
             <span class="stat-value" id="m-delay">{{ latencyDisplay }}ms</span>
           </div>
@@ -615,8 +615,8 @@ function handleExecuteAttack() {
             <span class="stat-value">{{ avgNeighbors }}</span>
           </div>
           <div class="metric-item">
-            <span class="stat-label" :style="{ color: parseFloat(avgInterference) > -60 ? '#ff3b3b' : '' }">干扰</span>
-            <span class="stat-value" :style="{ color: parseFloat(avgInterference) > -60 ? '#ff3b3b' : '#00ff88' }">{{ avgInterference }}<small>dBm</small></span>
+            <span class="stat-label" :style="{ color: parseFloat(avgInterference) > -60 ? 'var(--red)' : '' }">干扰</span>
+            <span class="stat-value" :style="{ color: parseFloat(avgInterference) > -60 ? 'var(--red)' : 'var(--green)' }">{{ avgInterference }}<small>dBm</small></span>
           </div>
         </div>
       </div>
@@ -641,7 +641,7 @@ function handleExecuteAttack() {
           :class="{ conflict: uav.is_conflict, nlos: uav.is_nlos }"
           :style="{ animationDelay: `${Number(idx) * 0.03}s` }"
         >
-          <div class="uav-id" :style="{ color: uav.is_conflict ? '#ff3b3b' : uav.is_nlos ? '#ffaa00' : '#e2e8f0' }">
+          <div class="uav-id" :style="{ color: uav.is_conflict ? 'var(--red)' : uav.is_nlos ? 'var(--orange)' : 'var(--text-primary)' }">
             UAV-{{ String(uav.id).padStart(2, '0') }}
           </div>
           <div class="uav-ch-tag" :style="{ color: channelColors[uav.channel] }">
@@ -653,11 +653,11 @@ function handleExecuteAttack() {
           <div class="uav-health-bar">
             <div class="health-fill" :style="{ 
               width: `${(uav.pdr || 0) * 100}%`, 
-              backgroundColor: (uav.pdr || 0) > 0.8 ? '#00ff88' : (uav.pdr || 0) > 0.5 ? '#facc15' : '#ff3b3b' 
+              backgroundColor: (uav.pdr || 0) > 0.8 ? 'var(--green)' : (uav.pdr || 0) > 0.5 ? 'var(--yellow)' : 'var(--red)' 
             }"></div>
           </div>
           <div class="uav-rate-status">
-            <span class="pdr-val" :style="{ color: (uav.pdr || 0) > 0.8 ? '#00ff88' : (uav.pdr || 0) > 0.5 ? '#facc15' : '#ff3b3b' }">{{ ((uav.pdr || 0) * 100).toFixed(0) }}%</span>
+            <span class="pdr-val" :style="{ color: (uav.pdr || 0) > 0.8 ? 'var(--green)' : (uav.pdr || 0) > 0.5 ? 'var(--yellow)' : 'var(--red)' }">{{ ((uav.pdr || 0) * 100).toFixed(0) }}%</span>
             <span class="delay-val">{{ (uav.delay || 0).toFixed(0) }}<small>ms</small></span>
           </div>
         </div>
@@ -711,9 +711,9 @@ function handleExecuteAttack() {
 
 /* ── 表单控件战术化重构 ── */
 .glass-select {
-  background: rgba(10, 14, 39, 0.6); /* 更深沉的底色 */
-  border: 1px solid rgba(0, 242, 255, 0.15);
-  color: var(--cyan); /* 亮色文字更具科幻感 */
+  background: rgba(20, 30, 46, 0.72);
+  border: 1px solid rgba(91, 141, 239, 0.18);
+  color: var(--text-primary);
   padding: 6px 8px;
   border-radius: 2px; /* 抛弃大圆角，采用军工切角感 */
   font-family: var(--font-mono);
@@ -730,7 +730,7 @@ select.glass-select {
   appearance: none;
   -webkit-appearance: none;
   /* 替换默认下拉箭头为自定义青色战术箭头 */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2300f2ff'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2323d7e6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 8px center;
   padding-right: 24px;
@@ -750,13 +750,13 @@ input[type=number].glass-select {
 
 .glass-select:hover, .glass-select:focus {
   border-color: var(--cyan);
-  background-color: rgba(0, 242, 255, 0.08);
-  box-shadow: 0 0 8px rgba(0, 242, 255, 0.2), inset 0 0 12px rgba(0, 242, 255, 0.05);
+  background-color: rgba(18, 214, 227, 0.08);
+  box-shadow: 0 0 8px rgba(18, 214, 227, 0.12), inset 0 0 12px rgba(18, 214, 227, 0.03);
 }
 
 .glass-select option {
-  background: #040714;
-  color: var(--cyan);
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 .waypoint-label {
@@ -767,25 +767,33 @@ input[type=number].glass-select {
 .picker-btn {
   font-size: 10px;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 3px 7px;
   border-radius: 2px;
-  background: rgba(0,0,0,0.3);
-  border: 1px solid transparent;
+  background: linear-gradient(135deg, rgba(22, 32, 51, 0.92), rgba(29, 41, 64, 0.86));
+  border: 1px solid rgba(111, 159, 245, 0.18);
   transition: all 0.2s;
-  color: var(--text-secondary);
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
 }
 
 .picker-btn:hover {
-  background: rgba(0, 242, 255, 0.08);
+  background: linear-gradient(135deg, rgba(35, 215, 230, 0.14), rgba(142, 130, 255, 0.1));
   border-color: var(--cyan);
   color: var(--cyan);
+  box-shadow: 0 0 12px rgba(35, 215, 230, 0.16);
 }
 
 .picker-btn.active {
-  background: rgba(0, 242, 255, 0.15);
+  background: linear-gradient(135deg, rgba(35, 215, 230, 0.22), rgba(142, 130, 255, 0.14));
   color: var(--cyan);
   border-color: var(--cyan);
-  box-shadow: 0 0 8px rgba(0, 242, 255, 0.6);
+  box-shadow: 0 0 10px rgba(35, 215, 230, 0.24), inset 0 0 12px rgba(35, 215, 230, 0.08);
+}
+
+.point-picker-btn {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.2px;
 }
 
 .sim-btn {
@@ -798,20 +806,20 @@ input[type=number].glass-select {
   letter-spacing: 1px;
   border-radius: var(--radius-md);
   background: linear-gradient(135deg,
-    rgba(0, 242, 255, 0.12),
-    rgba(168, 85, 247, 0.08));
-  border: 1px solid rgba(0, 242, 255, 0.3);
+    rgba(35, 215, 230, 0.12),
+    rgba(142, 130, 255, 0.08));
+  border: 1px solid rgba(111, 159, 245, 0.24);
   position: relative;
   overflow: hidden;
 }
 
 .sim-btn:not(:disabled):hover {
   background: linear-gradient(135deg,
-    rgba(0, 242, 255, 0.22),
-    rgba(168, 85, 247, 0.15));
+    rgba(35, 215, 230, 0.2),
+    rgba(142, 130, 255, 0.14));
   border-color: var(--cyan);
   box-shadow:
-    0 0 24px rgba(0, 242, 255, 0.15),
+    0 0 24px rgba(35, 215, 230, 0.14),
     0 4px 16px rgba(0, 0, 0, 0.3);
   transform: translateY(-1px);
 }
@@ -837,7 +845,7 @@ input[type=number].glass-select {
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid rgba(255, 107, 107, 0.35);
-  background: rgba(255, 59, 59, 0.08);
+  background: rgba(239, 68, 68, 0.08);
   color: #ffb3b3;
   font-size: 12px;
   line-height: 1.5;
@@ -854,7 +862,7 @@ input[type=number].glass-select {
 
 .btn-icon {
   font-size: 16px;
-  filter: drop-shadow(0 0 4px rgba(0, 242, 255, 0.5));
+  filter: drop-shadow(0 0 4px rgba(35, 215, 230, 0.35));
 }
 
 .btn-sweep {
@@ -864,7 +872,7 @@ input[type=number].glass-select {
   height: 100%;
   background: linear-gradient(90deg,
     transparent,
-    rgba(0, 242, 255, 0.08),
+    rgba(35, 215, 230, 0.08),
     transparent);
   animation: sweep 3s ease-in-out infinite;
   pointer-events: none;
@@ -879,7 +887,7 @@ input[type=number].glass-select {
 .loading-spinner {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(0, 242, 255, 0.2);
+  border: 2px solid rgba(35, 215, 230, 0.18);
   border-top-color: var(--cyan);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -956,11 +964,30 @@ input[type=number].glass-select {
   font-family: var(--font-display);
   font-size: 14px;
   font-weight: 700;
+  color: var(--text-primary);
+}
+
+.delay-metric {
+  background: linear-gradient(135deg, rgba(22, 32, 51, 0.72), rgba(29, 41, 64, 0.5));
+  border: 1px solid rgba(111, 159, 245, 0.14);
+  border-radius: 6px;
+  padding: 8px 10px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+}
+
+.delay-metric .stat-label {
+  color: #c7d5e4;
+  letter-spacing: 0.6px;
+}
+
+#m-delay {
+  color: var(--cyan);
+  text-shadow: 0 0 10px rgba(35, 215, 230, 0.22);
 }
 
 .stat-value.green {
-  color: #00ff88;
-  text-shadow: 0 0 8px rgba(0, 255, 136, 0.4);
+  color: var(--green);
+  text-shadow: 0 0 8px rgba(34, 197, 94, 0.35);
 }
 
 .metrics-grid {
@@ -1042,14 +1069,14 @@ input[type=number].glass-select {
 }
 
 .uav-row:hover {
-  background: linear-gradient(90deg, rgba(0, 242, 255, 0.12), transparent);
+  background: linear-gradient(90deg, rgba(35, 215, 230, 0.12), transparent);
   border-left-color: var(--cyan);
-  box-shadow: inset 0 0 12px rgba(0, 242, 255, 0.05);
+  box-shadow: inset 0 0 12px rgba(35, 215, 230, 0.05);
   transform: translateX(4px); /* 悬浮时向右微移，增强互动感 */
 }
 
 .uav-row.conflict {
-  background: linear-gradient(90deg, rgba(255, 59, 59, 0.15), transparent);
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.15), transparent);
   border-left: 2px solid var(--red);
 }
 
@@ -1080,7 +1107,7 @@ input[type=number].glass-select {
 .pos-xy {
   font-family: var(--font-mono);
   font-size: 9px;
-  color: #64748b;        /* ★ 从 #475569 提亮 */
+  color: var(--text-dim);
   letter-spacing: -0.3px;
 }
 
@@ -1101,11 +1128,16 @@ input[type=number].glass-select {
   border-bottom: 1px solid rgba(255, 255, 255, 0.03); /* ★ 新增 */
 }
 
+.metric-item.delay-metric {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(35, 215, 230, 0.08);
+}
+
 .sim-control-card {
   padding: 14px;
   flex-shrink: 0;
   border-top: 2px solid var(--cyan);
-  box-shadow: 0 -4px 20px rgba(0, 242, 255, 0.05);
+  box-shadow: 0 -4px 20px rgba(35, 215, 230, 0.06);
 }
 
 .uav-health-bar {
@@ -1141,7 +1173,7 @@ input[type=number].glass-select {
 .delay-val {
   font-family: var(--font-mono);
   font-size: 10px;
-  color: #64748b;
+  color: var(--text-dim);
 }
 
 .delay-val small {
@@ -1172,7 +1204,7 @@ input[type=number].glass-select {
   letter-spacing: 1px;
   margin-top: 10px;
   padding: 4px 0 2px;
-  border-top: 1px solid rgba(0, 242, 255, 0.1);
+  border-top: 1px solid rgba(35, 215, 230, 0.1);
   font-family: var(--font-mono);
   font-weight: 600;
   text-transform: uppercase;

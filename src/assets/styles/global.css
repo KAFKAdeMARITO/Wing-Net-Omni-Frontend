@@ -19,6 +19,7 @@ body {
     font-family: var(--font-body);
     font-size: 14px;
     line-height: 1.5;
+    text-shadow: var(--text-shadow-soft);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
@@ -49,10 +50,10 @@ body {
 
 /* ── Glass Panel ── */
 .glass-panel {
-    background: var(--glass-bg);
+    background: linear-gradient(180deg, var(--glass-bg), var(--panel-fill-strong));
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--panel-border-strong);
     border-radius: var(--radius-md);
     box-shadow: var(--glass-shadow);
 }
@@ -103,6 +104,7 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+    text-shadow: 0 0 8px rgba(35, 215, 230, 0.18);
 }
 
 .section-title::before {
@@ -124,9 +126,9 @@ body {
     font-size: 11px;
     font-weight: 500;
     border-radius: 20px;
-    background: var(--cyan-dim);
+    background: rgba(18, 214, 227, 0.12);
     color: var(--cyan);
-    border: 1px solid rgba(0, 242, 255, 0.2);
+    border: 1px solid var(--panel-border-strong);
 }
 
 .chip.warn {
@@ -138,7 +140,7 @@ body {
 .chip.danger {
     background: var(--red-dim);
     color: var(--red);
-    border-color: rgba(255, 59, 59, 0.2);
+    border-color: rgba(239, 68, 68, 0.2);
     animation: pulse-danger 1.5s infinite;
 }
 
@@ -234,7 +236,7 @@ body {
     }
 
     50% {
-        background: rgba(255, 59, 59, 0.12);
+        background: rgba(239, 68, 68, 0.12);
     }
 }
 
@@ -242,7 +244,7 @@ body {
 .progress-bar {
     width: 100%;
     height: 4px;
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.08);
     border-radius: 2px;
     overflow: hidden;
 }
@@ -265,10 +267,11 @@ body::after {
         0deg,
         transparent,
         transparent 2px,
-        rgba(0, 0, 0, 0.03) 2px,
-        rgba(0, 0, 0, 0.03) 4px
+        rgba(0, 0, 0, 0.02) 2px,
+        rgba(0, 0, 0, 0.02) 4px
     );
     mix-blend-mode: multiply;
+    opacity: var(--crt-overlay-opacity);
 }
 
 /* ── Glass Panel Hover Glow ── */
@@ -277,8 +280,8 @@ body::after {
 }
 
 .glass-panel:hover {
-    border-color: rgba(0, 242, 255, 0.25);
-    box-shadow: var(--glass-shadow), inset 0 0 30px rgba(0, 242, 255, 0.03);
+    border-color: var(--glass-border);
+    box-shadow: var(--glass-shadow), inset 0 0 30px rgba(35, 215, 230, 0.05);
 }
 
 /* ── Value Flash (for metric update pulses) ── */
@@ -312,15 +315,15 @@ body::after {
 /* ── Breathing Glow (for buttons) ── */
 @keyframes breathe-glow {
     0%, 100% { box-shadow: 0 0 4px var(--cyan); }
-    50%      { box-shadow: 0 0 16px var(--cyan), 0 0 30px rgba(0, 242, 255, 0.2); }
+    50%      { box-shadow: 0 0 16px var(--cyan), 0 0 30px rgba(35, 215, 230, 0.2); }
 }
 
 /* ── Glass Inputs & Selects ── */
 .glass-select {
     color-scheme: dark; /* Force dark context for native controls */
-    background-color: rgba(10, 20, 30, 0.6);
-    color: var(--cyan);
-    border: 1px solid var(--glass-border);
+    background-color: var(--panel-fill-strong);
+    color: var(--text-primary);
+    border: 1px solid var(--panel-border-strong);
     border-radius: 4px;
     padding: 6px 12px;
     font-family: var(--font-mono);
@@ -342,21 +345,21 @@ select.glass-select {
 }
 
 .glass-select:hover {
-    background-color: rgba(10, 20, 30, 0.8);
-    border-color: rgba(0, 242, 255, 0.5);
+    background-color: var(--bg-secondary);
+    border-color: var(--glass-border);
 }
 
 .glass-select:focus {
     outline: none;
     border-color: var(--cyan);
-    box-shadow: 0 0 10px rgba(0, 242, 255, 0.2);
-    background-color: rgba(10, 20, 30, 0.9);
+    box-shadow: var(--focus-ring);
+    background-color: var(--bg-secondary);
 }
 
 /* Fix for white background on options in some browsers */
 .glass-select option {
-    background-color: #050a10;
-    color: var(--cyan);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
     padding: 8px;
 }
 
@@ -366,8 +369,8 @@ input:-webkit-autofill,
 input:-webkit-autofill:hover, 
 input:-webkit-autofill:focus, 
 input:-webkit-autofill:active {
-    -webkit-box-shadow: 0 0 0 30px #040714 inset !important;
-    -webkit-text-fill-color: var(--cyan) !important;
+    -webkit-box-shadow: 0 0 0 30px #121b2d inset !important;
+    -webkit-text-fill-color: var(--text-primary) !important;
     caret-color: var(--cyan);
     transition: background-color 5000s ease-in-out 0s;
 }
@@ -379,6 +382,6 @@ select {
 
 /* Default option style */
 option {
-    background-color: #040714;
-    color: var(--cyan);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
 }

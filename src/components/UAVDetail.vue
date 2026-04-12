@@ -15,8 +15,8 @@ const emit = defineEmits<{
 }>()
 
 const channelLabels = ['CH-α  5.1 GHz', 'CH-β  5.4 GHz', 'CH-γ  5.8 GHz']
-const channelColors = ['#00f2ff', '#a855f7', '#10b981']
-const channelColor = computed(() => channelColors[props.uav.channel] || '#00f2ff')
+const channelColors = ['#23d7e6', '#8e82ff', '#22c55e']
+const channelColor = computed(() => channelColors[props.uav.channel] || '#23d7e6')
 
 const uavRole = computed(() =>
   props.uav.id === 0
@@ -41,10 +41,10 @@ const sinr = computed(() => props.uav.sinr)
 const speed = computed(() => props.uav.speed || 0)
 const sinrStatus = computed(() => {
   const value = sinr.value
-  if (value === undefined || value === null) return { color: '#94a3b8', label: '无回传' }
-  if (value >= 18) return { color: '#00ff88', label: '链路裕量高' }
-  if (value >= 10) return { color: '#facc15', label: '链路临界' }
-  return { color: '#ff3b3b', label: '抗干扰弱' }
+  if (value === undefined || value === null) return { color: 'var(--text-dim)', label: '无回传' }
+  if (value >= 18) return { color: 'var(--green)', label: '链路裕量高' }
+  if (value >= 10) return { color: 'var(--yellow)', label: '链路临界' }
+  return { color: 'var(--red)', label: '抗干扰弱' }
 })
 
 // 综合链路评分逻辑 (0-100)
@@ -60,9 +60,9 @@ const linkScore = computed(() => {
 })
 
 const linkHealthStatus = computed(() => {
-  if (linkScore.value >= 80) return { text: '极佳', color: '#00ff88' }
-  if (linkScore.value >= 50) return { text: '普通', color: '#facc15' }
-  return { text: '危急', color: '#ff3b3b' }
+  if (linkScore.value >= 80) return { text: '极佳', color: 'var(--green)' }
+  if (linkScore.value >= 50) return { text: '普通', color: 'var(--yellow)' }
+  return { text: '危急', color: 'var(--red)' }
 })
 
 const radarEl = ref<HTMLDivElement | null>(null)
@@ -83,13 +83,13 @@ function radarOption(cc: string): echarts.EChartsOption {
       shape: 'polygon',
       splitNumber: 4,
       axisName: {
-        color: '#64748b',
+        color: '#8fa1b7',
         fontSize: 9,
         fontFamily: 'JetBrains Mono, Noto Sans SC, monospace'
       },
       splitArea: {
         areaStyle: {
-          color: ['rgba(0,242,255,0.02)', 'rgba(0,242,255,0.04)', 'rgba(0,242,255,0.02)', 'rgba(0,242,255,0.04)']
+          color: ['rgba(35,215,230,0.02)', 'rgba(35,215,230,0.05)', 'rgba(35,215,230,0.02)', 'rgba(35,215,230,0.05)']
         }
       },
       splitLine: {
@@ -269,14 +269,14 @@ function onClose() {
               <div class="res-cell">
                 <div class="cell-head">链路速率</div>
                 <div class="cell-body">
-                  <span class="power-val" :style="{ color: '#a855f7' }">{{ dataRate.toFixed(1) }}</span>
+                  <span class="power-val" :style="{ color: 'var(--purple)' }">{{ dataRate.toFixed(1) }}</span>
                   <span class="power-unit">Mbps</span>
                 </div>
               </div>
               <div class="res-cell">
                 <div class="cell-head">飞行速度</div>
                 <div class="cell-body">
-                  <span class="power-val" :style="{ color: '#00f2ff' }">{{ speed.toFixed(1) }}</span>
+                  <span class="power-val" :style="{ color: 'var(--cyan)' }">{{ speed.toFixed(1) }}</span>
                   <span class="power-unit">m/s</span>
                 </div>
               </div>
@@ -321,7 +321,7 @@ function onClose() {
                   <span class="small">一跳邻居</span>
                 </div>
                 <div class="topo-num" style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 8px; padding-top: 8px;">
-                  <span class="big" :style="{ color: (uav.interference ?? -95) > -60 ? '#ff3b3b' : '#00ff88' }">{{ (uav.interference ?? -95).toFixed(1) }} <small>dBm</small></span>
+                  <span class="big" :style="{ color: (uav.interference ?? -95) > -60 ? 'var(--red)' : 'var(--green)' }">{{ (uav.interference ?? -95).toFixed(1) }} <small>dBm</small></span>
                   <span class="small">干扰功率</span>
                 </div>
                 <div v-if="isIsolated" class="topo-alert">
@@ -343,45 +343,45 @@ function onClose() {
               <!-- PDR -->
               <div class="qos-row">
                 <div class="qos-meta">
-                  <span class="qos-icon" style="color: #00ff88">●</span>
+                  <span class="qos-icon" style="color: var(--green)">●</span>
                   <span class="qos-name">PDR</span>
                 </div>
                 <div class="qos-bar-wrap">
                   <div class="qos-bar">
-                    <div class="qos-fill" :style="{ width: pdr + '%', '--fc': '#00ff88' }"></div>
+                    <div class="qos-fill" :style="{ width: pdr + '%', '--fc': 'var(--green)' }"></div>
                   </div>
                 </div>
-                <span class="qos-val" :style="{ color: pdr > 80 ? '#00ff88' : pdr > 50 ? '#facc15' : '#ff3b3b' }">
+                <span class="qos-val" :style="{ color: pdr > 80 ? 'var(--green)' : pdr > 50 ? 'var(--yellow)' : 'var(--red)' }">
                   {{ pdr.toFixed(1) }}<small>%</small>
                 </span>
               </div>
               <!-- Delay -->
               <div class="qos-row">
                 <div class="qos-meta">
-                  <span class="qos-icon" style="color: #00f2ff">●</span>
+                  <span class="qos-icon" style="color: var(--cyan)">●</span>
                   <span class="qos-name">DELAY</span>
                 </div>
                 <div class="qos-bar-wrap">
                   <div class="qos-bar">
-                    <div class="qos-fill" :style="{ width: Math.min(100, delay * 1.67) + '%', '--fc': '#00f2ff' }"></div>
+                    <div class="qos-fill" :style="{ width: Math.min(100, delay * 1.67) + '%', '--fc': 'var(--cyan)' }"></div>
                   </div>
                 </div>
-                <span class="qos-val" :style="{ color: delay < 20 ? '#00ff88' : delay < 40 ? '#facc15' : '#ff3b3b' }">
+                <span class="qos-val" :style="{ color: delay < 20 ? 'var(--green)' : delay < 40 ? 'var(--yellow)' : 'var(--red)' }">
                   {{ delay.toFixed(1) }}<small>ms</small>
                 </span>
               </div>
               <!-- Throughput -->
               <div class="qos-row">
                 <div class="qos-meta">
-                  <span class="qos-icon" style="color: #a855f7">●</span>
+                  <span class="qos-icon" style="color: var(--purple)">●</span>
                   <span class="qos-name">THRU</span>
                 </div>
                 <div class="qos-bar-wrap">
                   <div class="qos-bar">
-                    <div class="qos-fill" :style="{ width: Math.min(100, throughput) + '%', '--fc': '#a855f7' }"></div>
+                    <div class="qos-fill" :style="{ width: Math.min(100, throughput) + '%', '--fc': 'var(--purple)' }"></div>
                   </div>
                 </div>
-                <span class="qos-val" style="color: #a855f7">
+                <span class="qos-val" style="color: var(--purple)">
                   {{ throughput.toFixed(1) }}<small>Mb/s</small>
                 </span>
               </div>
@@ -422,7 +422,7 @@ function onClose() {
                   <div class="qos-meta">
                     <span class="qos-name">捕获包量</span>
                   </div>
-                  <span class="qos-val" style="color: #00f2ff">
+                  <span class="qos-val" style="color: var(--cyan)">
                     845 <small>pkg/s</small>
                   </span>
                 </div>
@@ -430,7 +430,7 @@ function onClose() {
                   <div class="qos-meta">
                     <span class="qos-name">信噪比估算</span>
                   </div>
-                  <span class="qos-val" style="color: #facc15">
+                  <span class="qos-val" style="color: var(--yellow)">
                     12.4 <small>dB</small>
                   </span>
                 </div>
@@ -445,7 +445,7 @@ function onClose() {
                   <div class="qos-meta" style="min-width: 80px;">
                     <span class="qos-name">推断角色</span>
                   </div>
-                  <span class="qos-val" style="color: #a855f7; font-weight: bold;">
+                  <span class="qos-val" style="color: var(--purple); font-weight: bold;">
                     骨干中继节点
                   </span>
                 </div>
@@ -455,10 +455,10 @@ function onClose() {
                   </div>
                   <div class="qos-bar-wrap">
                     <div class="qos-bar">
-                      <div class="qos-fill" :style="{ width: '82%', '--fc': '#facc15' }"></div>
+                      <div class="qos-fill" :style="{ width: '82%', '--fc': 'var(--yellow)' }"></div>
                     </div>
                   </div>
-                  <span class="qos-val" style="color: #facc15">82<small>%</small></span>
+                  <span class="qos-val" style="color: var(--yellow)">82<small>%</small></span>
                 </div>
               </div>
             </section>
@@ -466,8 +466,8 @@ function onClose() {
             <!-- ── Footer: 打击价值 ── -->
             <footer class="link-footer" style="margin-top:20px;">
               <div class="link-left">
-                <span class="link-label" style="color:#ff3b3b">推荐打击价值</span>
-                <span class="link-status" style="color: #ff3b3b; font-weight: bold;">极高</span>
+                <span class="link-label" style="color:var(--red)">推荐打击价值</span>
+                <span class="link-status" style="color: var(--red); font-weight: bold;">极高</span>
               </div>
             </footer>
           </template>
@@ -499,14 +499,14 @@ function onClose() {
 .detail-card {
   width: 460px; max-height: 88vh;
   display: flex; flex-direction: column;
-  background: linear-gradient(165deg, rgba(8, 14, 30, 0.96), rgba(4, 7, 18, 0.98));
-  border: 1px solid rgba(0, 242, 255, 0.12);
+  background: linear-gradient(165deg, rgba(16, 24, 39, 0.96), rgba(11, 18, 32, 0.98));
+  border: 1px solid rgba(111, 159, 245, 0.16);
   border-radius: 6px;
   position: relative;
   overflow: hidden;
   box-shadow:
-    0 0 60px rgba(0, 242, 255, 0.06),
-    0 30px 80px rgba(0, 0, 0, 0.5);
+    0 0 60px rgba(35, 215, 230, 0.06),
+    0 30px 80px rgba(0, 0, 0, 0.36);
   /* entry animation */
   opacity: 0;
   transform: translateY(24px) scale(0.96);
@@ -528,7 +528,7 @@ function onClose() {
 /* Corner brackets */
 .corner {
   position: absolute; width: 12px; height: 12px;
-  border-color: rgba(0, 242, 255, 0.25);
+  border-color: rgba(111, 159, 245, 0.22);
   border-style: solid;
   pointer-events: none;
 }
@@ -544,8 +544,8 @@ function onClose() {
   background: repeating-linear-gradient(
     0deg,
     transparent, transparent 3px,
-    rgba(0, 242, 255, 0.012) 3px,
-    rgba(0, 242, 255, 0.012) 4px
+    rgba(35, 215, 230, 0.012) 3px,
+    rgba(35, 215, 230, 0.012) 4px
   );
   pointer-events: none;
 }
@@ -566,7 +566,7 @@ function onClose() {
   display: inline-flex; align-items: center; gap: 8px;
   font-family: var(--font-display);
   font-size: 22px; font-weight: 700;
-  color: #e2e8f0;
+  color: var(--text-primary);
   line-height: 1;
 }
 .chip-icon {
@@ -584,7 +584,7 @@ function onClose() {
   font-weight: 600;
 }
 .role-label {
-  font-size: 11px; color: #64748b;
+  font-size: 11px; color: var(--text-dim);
 }
 
 .hdr-right { display: flex; align-items: center; gap: 10px; }
@@ -596,14 +596,14 @@ function onClose() {
   position: relative;
 }
 .status-pill.nominal {
-  color: #00ff88;
-  background: rgba(0, 255, 136, 0.08);
-  border: 1px solid rgba(0, 255, 136, 0.15);
+  color: var(--green);
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.15);
 }
 .status-pill.critical {
-  color: #ff3b3b;
-  background: rgba(255, 59, 59, 0.1);
-  border: 1px solid rgba(255, 59, 59, 0.2);
+  color: var(--red);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
   animation: pill-blink 1.2s infinite;
 }
 @keyframes pill-blink {
@@ -629,13 +629,13 @@ function onClose() {
   width: 28px; height: 28px; border-radius: 4px;
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.06);
-  color: #64748b; cursor: pointer;
+  color: var(--text-dim); cursor: pointer;
   transition: all 0.2s;
 }
 .close-x:hover {
-  background: rgba(255,59,59,0.12);
-  border-color: rgba(255,59,59,0.3);
-  color: #ff6b6b;
+  background: rgba(239,68,68,0.12);
+  border-color: rgba(239,68,68,0.28);
+  color: #ff8585;
 }
 
 /* ════════════════════════════════════════════
@@ -648,7 +648,7 @@ function onClose() {
   position: relative; z-index: 1;
 }
 .body::-webkit-scrollbar { width: 3px; }
-.body::-webkit-scrollbar-thumb { background: rgba(0,242,255,0.15); border-radius: 3px; }
+.body::-webkit-scrollbar-thumb { background: rgba(35,215,230,0.16); border-radius: 3px; }
 
 /* ── Section wrapper ── */
 .sec {
@@ -656,7 +656,7 @@ function onClose() {
 }
 .sec-label {
   font-size: 9px; font-family: var(--font-mono);
-  color: #475569; letter-spacing: 2.5px;
+  color: var(--text-dim); letter-spacing: 2.5px;
   padding-bottom: 4px;
   border-bottom: 1px solid rgba(255,255,255,0.04);
 }
@@ -682,23 +682,23 @@ function onClose() {
   align-items: center;
   justify-content: center;
   gap: 1px;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(16, 24, 39, 0.28);
   padding: 8px 4px;               /* ★ 微增内边距 */
   border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(111, 159, 245, 0.08);
   text-align: center;
   transition: all 0.2s ease;       /* ★ 新增过渡 */
 }
 
 .coord:hover {
-  background: rgba(0, 242, 255, 0.04);
-  border-color: rgba(0, 242, 255, 0.12);
+  background: rgba(35, 215, 230, 0.05);
+  border-color: rgba(111, 159, 245, 0.14);
   transform: translateY(-1px);
 }
 
 .coord .axis {
   font-size: 10px;
-  color: #64748b;
+  color: var(--text-dim);
   font-family: var(--font-mono);
   font-weight: 600;
   letter-spacing: 1.5px;
@@ -709,19 +709,19 @@ function onClose() {
   font-size: 16px;
   font-family: var(--font-mono);
   font-weight: 700;
-  color: #e2e8f0;
+  color: var(--text-primary);
   line-height: 1.2;
 }
 
 .coord .unit {
   font-size: 9px;
-  color: #475569;
+  color: var(--text-dim);
   font-family: var(--font-mono);
   line-height: 1;
 }
 
 .coord.heading .num {
-  color: #facc15;
+  color: var(--yellow);
 }
 
 .radar-mini {
@@ -738,13 +738,13 @@ function onClose() {
   display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
 }
 .res-cell {
-  background: rgba(0,0,0,0.25);
+  background: rgba(16, 24, 39, 0.28);
   padding: 12px; border-radius: 4px;
-  border: 1px solid rgba(255,255,255,0.04);
+  border: 1px solid rgba(111, 159, 245, 0.08);
   display: flex; flex-direction: column; gap: 8px;
 }
 .cell-head {
-  font-size: 9px; color: #475569;
+  font-size: 9px; color: var(--text-dim);
   font-family: var(--font-mono); letter-spacing: 1.5px;
 }
 .cell-body {
@@ -767,23 +767,23 @@ function onClose() {
 
 .power-val {
   font-family: var(--font-display); font-size: 20px; font-weight: 700;
-  color: #e2e8f0;
+  color: var(--text-primary);
   transition: color 0.3s;
 }
 .power-val.surge {
-  color: #ff3b3b;
-  text-shadow: 0 0 10px rgba(255, 59, 59, 0.5);
+  color: var(--red);
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.35);
   animation: pill-blink 0.8s infinite;
 }
 .power-unit {
-  font-size: 11px; color: #64748b; font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-dim); font-family: var(--font-mono);
 }
 
 .cell-foot {
   font-size: 9px;
   font-family: var(--font-mono);
   letter-spacing: 1px;
-  color: #64748b;
+  color: var(--text-dim);
 }
 
 /* ════════════════════════════════════════════
@@ -803,11 +803,11 @@ function onClose() {
   width: 34px; height: 34px;
   border-radius: 50%;
   border: 2px solid;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(16, 24, 39, 0.55);
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; font-family: var(--font-mono); font-weight: 700;
   z-index: 2;
-  box-shadow: 0 0 16px rgba(0, 242, 255, 0.15);
+  box-shadow: 0 0 16px rgba(35, 215, 230, 0.16);
   transition: box-shadow 0.3s;
 }
 
@@ -827,13 +827,13 @@ function onClose() {
 .topo-link {
   position: absolute; top: -0.5px; left: 0;
   width: 100%; height: 1px;
-  background: linear-gradient(90deg, rgba(0,242,255,0.3), rgba(0,242,255,0.08));
+  background: linear-gradient(90deg, rgba(35,215,230,0.3), rgba(35,215,230,0.08));
 }
 .topo-dot {
   position: absolute; right: -4px; top: -4px;
   width: 8px; height: 8px; border-radius: 50%;
-  background: rgba(0, 242, 255, 0.6);
-  box-shadow: 0 0 6px rgba(0, 242, 255, 0.4);
+  background: rgba(35, 215, 230, 0.62);
+  box-shadow: 0 0 6px rgba(35, 215, 230, 0.4);
 }
 
 .topo-stats {
@@ -846,35 +846,35 @@ function onClose() {
 .topo-num .big {
   font-size: 36px; font-weight: 700;
   font-family: var(--font-mono);
-  line-height: 1; color: #e2e8f0;
+  line-height: 1; color: var(--text-primary);
 }
 .topo-num .small {
-  font-size: 9px; color: #475569;
+  font-size: 9px; color: var(--text-dim);
   font-family: var(--font-mono); letter-spacing: 2px;
   margin-top: 2px;
 }
 
 .topo-alert {
   display: flex; align-items: center; gap: 6px;
-  font-size: 11px; color: #ff3b3b;
+  font-size: 11px; color: var(--red);
   font-family: var(--font-mono);
-  background: rgba(255, 59, 59, 0.08);
+  background: rgba(239, 68, 68, 0.08);
   padding: 6px 10px; border-radius: 4px;
-  border: 1px solid rgba(255, 59, 59, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.18);
   animation: pill-blink 1s infinite;
 }
 .alert-icon { font-size: 14px; }
 
 .topo-ok {
   display: flex; align-items: center; gap: 6px;
-  font-size: 11px; color: #00ff88;
-  background: rgba(0, 255, 136, 0.06);
+  font-size: 11px; color: var(--green);
+  background: rgba(34, 197, 94, 0.08);
   padding: 6px 10px; border-radius: 4px;
-  border: 1px solid rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.14);
 }
 .ok-icon {
   width: 16px; height: 16px; border-radius: 50%;
-  background: rgba(0, 255, 136, 0.15);
+  background: rgba(34, 197, 94, 0.16);
   display: flex; align-items: center; justify-content: center;
   font-size: 10px;
 }
@@ -895,7 +895,7 @@ function onClose() {
 }
 .qos-icon { font-size: 8px; }
 .qos-name {
-  font-size: 10px; font-family: var(--font-mono); color: #64748b;
+  font-size: 10px; font-family: var(--font-mono); color: var(--text-dim);
   letter-spacing: 1px;
 }
 
@@ -935,7 +935,7 @@ function onClose() {
   min-width: 60px;
 }
 .link-label {
-  font-size: 8px; color: #475569; font-family: var(--font-mono);
+  font-size: 8px; color: var(--text-dim); font-family: var(--font-mono);
   letter-spacing: 2px;
 }
 .link-status {

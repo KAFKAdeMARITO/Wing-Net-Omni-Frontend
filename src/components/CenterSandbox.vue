@@ -97,8 +97,8 @@ let cameraDistance = 500
 let cameraTarget = new THREE.Vector3(300, 0, 300)
 
 const GRID = 600
-const channelColors = [0x00f2ff, 0xa855f7, 0x00ff88]
-const channelHexStr = ['#00f2ff', '#a855f7', '#00ff88']
+const channelColors = [0x23d7e6, 0x8e82ff, 0x22c55e]
+const channelHexStr = ['#23d7e6', '#8e82ff', '#22c55e']
 
 // GeoJSON Transform State (Synchronized with Building generation)
 const geojsonTransform = { scale: 1, offsetX: 0, offsetZ: 0 }
@@ -125,7 +125,7 @@ function initScene() {
 
   // Scene
   scene = new THREE.Scene()
-  scene.fog = new THREE.FogExp2(0x040714, 0.0008)
+  scene.fog = new THREE.FogExp2(0x132033, 0.00072)
 
   // Camera
   camera = new THREE.PerspectiveCamera(50, w / h, 1, 2000)
@@ -135,7 +135,7 @@ function initScene() {
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
   renderer.setSize(w, h)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-  renderer.setClearColor(0x040714)
+  renderer.setClearColor(0x132033)
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFSoftShadowMap
   containerRef.value.appendChild(renderer.domElement)
@@ -144,10 +144,10 @@ function initScene() {
   clock = new THREE.Clock()
 
   // Lighting
-  const ambientLight = new THREE.AmbientLight(0x1a2040, 1.5)
+  const ambientLight = new THREE.AmbientLight(0x25365a, 1.7)
   scene.add(ambientLight)
 
-  const dirLight = new THREE.DirectionalLight(0x4488cc, 0.8)
+  const dirLight = new THREE.DirectionalLight(0x73a8de, 0.92)
   dirLight.position.set(200, 400, 200)
   dirLight.castShadow = true
   dirLight.shadow.mapSize.set(1024, 1024)
@@ -159,7 +159,7 @@ function initScene() {
   dirLight.shadow.camera.bottom = -400
   scene.add(dirLight)
 
-  const hemiLight = new THREE.HemisphereLight(0x0f1535, 0x000510, 0.6)
+  const hemiLight = new THREE.HemisphereLight(0x1f3151, 0x09101d, 0.72)
   scene.add(hemiLight)
 
   // Cyan point lights for atmosphere
@@ -278,70 +278,190 @@ function createGround() {
   const isForest = currentScene.value === 'forest'
   const isWild = currentScene.value === 'wild'
   const isOpen = currentScene.value === 'open'
-  
-  const gColor = isForest ? 0x051a0f : (isWild ? 0x1a1205 : (isOpen ? 0x001830 : 0x0a0e27))
-  const gGrid = isForest ? 0x00ff88 : (isWild ? 0xfacc15 : (isOpen ? 0x00ccff : 0x00f2ff))
 
-  // Ground plane
-  const segments = isOpen ? 64 : 1
-  const groundGeo = new THREE.PlaneGeometry(GRID, GRID, segments, segments)
-  const groundMat = new THREE.MeshStandardMaterial({
-    color: gColor,
-    roughness: isOpen ? 0.1 : 0.9,
-    metalness: isOpen ? 0.8 : 0.1,
-  })
-  const ground = new THREE.Mesh(groundGeo, groundMat)
-  if (isOpen) ground.name = "OceanGround"
-  ground.rotation.x = -Math.PI / 2
-  ground.position.set(GRID / 2, -0.5, GRID / 2)
-  ground.receiveShadow = true
-  groundGroup.add(ground)
+  const gColor = isForest ? 0x08150f : (isWild ? 0x6b5331 : (isOpen ? 0x07121d : 0x060b18))
+  const gGrid = isForest ? 0x34f5a1 : (isWild ? 0xffd36a : (isOpen ? 0x73c7ff : 0x2ed8e6))
+
+  if (isOpen) {
+    // Lake: keep the composition clean and improve readability via water color/material only
+    const shoreGeo = new THREE.PlaneGeometry(GRID, GRID)
+    const shoreMat = new THREE.MeshStandardMaterial({
+      color: 0x142236,
+      roughness: 0.98,
+      metalness: 0.02,
+    })
+    const shore = new THREE.Mesh(shoreGeo, shoreMat)
+    shore.rotation.x = -Math.PI / 2
+    shore.position.set(GRID / 2, -1.2, GRID / 2)
+    shore.receiveShadow = true
+    groundGroup.add(shore)
+
+    const waterSize = GRID * 0.82
+    const waterGeo = new THREE.PlaneGeometry(waterSize, waterSize, 72, 72)
+    const waterMat = new THREE.MeshStandardMaterial({
+      color: 0x2a6f8f,
+      roughness: 0.34,
+      metalness: 0.08,
+    })
+    const water = new THREE.Mesh(waterGeo, waterMat)
+    water.name = 'OceanGround'
+    water.rotation.x = -Math.PI / 2
+    water.position.set(GRID / 2, -0.35, GRID / 2)
+    water.receiveShadow = true
+    water.userData.isGround = true
+    groundGroup.add(water)
+  } else if (isWild) {
+    const terrainGeo = new THREE.PlaneGeometry(GRID, GRID, 48, 48)
+    const pos = terrainGeo.attributes.position as THREE.BufferAttribute
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i)
+      const y = pos.getY(i)
+      const broad = Math.sin(x * 0.011) * 7 + Math.cos(y * 0.009) * 6
+      const detail = Math.sin((x + y) * 0.016) * 2.5
+      pos.setZ(i, broad + detail)
+    }
+    terrainGeo.computeVertexNormals()
+
+    const terrainMat = new THREE.MeshStandardMaterial({
+      color: gColor,
+      roughness: 0.9,
+      metalness: 0.01,
+      emissive: 0x1f1407,
+    })
+    const terrain = new THREE.Mesh(terrainGeo, terrainMat)
+    terrain.rotation.x = -Math.PI / 2
+    terrain.position.set(GRID / 2, 6.5, GRID / 2)
+    terrain.receiveShadow = true
+    terrain.userData.isGround = true
+    groundGroup.add(terrain)
+
+    createOpenFieldFeatures(groundGroup)
+  } else {
+    const groundGeo = new THREE.PlaneGeometry(GRID, GRID, 1, 1)
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: gColor,
+      roughness: 0.98,
+      metalness: 0.02,
+    })
+    const ground = new THREE.Mesh(groundGeo, groundMat)
+    ground.rotation.x = -Math.PI / 2
+    ground.position.set(GRID / 2, -0.5, GRID / 2)
+    ground.receiveShadow = true
+    ground.userData.isGround = true
+    groundGroup.add(ground)
+  }
 
   // Grid helper
   const gridHelper = new THREE.GridHelper(GRID, 12, gGrid, gGrid)
   gridHelper.position.set(GRID / 2, 0, GRID / 2)
-  gridHelper.material.opacity = 0.06
+  gridHelper.material.opacity = isWild ? 0 : 0.12
   gridHelper.material.transparent = true
   groundGroup.add(gridHelper)
 
   // Glowing edge border
   const borderGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(GRID, 0.5, GRID))
-  const borderMat = new THREE.LineBasicMaterial({ color: gGrid, transparent: true, opacity: 0.15 })
+  const borderMat = new THREE.LineBasicMaterial({ color: gGrid, transparent: true, opacity: isWild ? 0.03 : 0.24 })
   const borderLine = new THREE.LineSegments(borderGeo, borderMat)
   borderLine.position.set(GRID / 2, 0, GRID / 2)
   groundGroup.add(borderLine)
   
-  // Set user data for ground to identify it in raycast
-  ground.userData.isGround = true
-
   scene.add(groundGroup)
+}
+
+function createOpenFieldFeatures(target: THREE.Group) {
+  const ridgeMat = new THREE.MeshStandardMaterial({
+    color: 0xb8843e,
+    roughness: 0.94,
+    metalness: 0.02,
+    emissive: 0x2c1706,
+    flatShading: true,
+  })
+  const plateauMat = new THREE.MeshStandardMaterial({
+    color: 0xe0b56a,
+    roughness: 0.88,
+    metalness: 0.02,
+    emissive: 0x332008,
+  })
+  const scrubMat = new THREE.MeshStandardMaterial({
+    color: 0xf0cf8b,
+    roughness: 0.9,
+    metalness: 0,
+    emissive: 0x3b2609,
+  })
+
+  const ridgeSpecs = [
+    { x: 135, z: 145, sx: 96, sy: 24, sz: 46, rot: 0.32 },
+    { x: 318, z: 252, sx: 132, sy: 30, sz: 58, rot: -0.4 },
+    { x: 472, z: 414, sx: 88, sy: 20, sz: 42, rot: 0.24 },
+    { x: 208, z: 438, sx: 76, sy: 16, sz: 34, rot: -0.18 },
+  ]
+
+  for (const ridge of ridgeSpecs) {
+    const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(1.2, 1), ridgeMat)
+    mesh.scale.set(ridge.sx, ridge.sy, ridge.sz)
+    mesh.position.set(ridge.x, 10 + ridge.sy * 0.45, ridge.z)
+    mesh.rotation.y = ridge.rot
+    mesh.castShadow = true
+    mesh.receiveShadow = true
+    target.add(mesh)
+  }
+
+  const plateauSpecs = [
+    { x: 102, z: 326, sx: 62, sy: 6, sz: 28, rot: 0.16 },
+    { x: 255, z: 108, sx: 86, sy: 8, sz: 34, rot: -0.12 },
+    { x: 426, z: 224, sx: 72, sy: 7, sz: 32, rot: 0.28 },
+    { x: 500, z: 516, sx: 64, sy: 5, sz: 26, rot: -0.22 },
+  ]
+  for (const plateau of plateauSpecs) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), plateauMat)
+    mesh.scale.set(plateau.sx, plateau.sy, plateau.sz)
+    mesh.position.set(plateau.x, 10 + plateau.sy * 0.45, plateau.z)
+    mesh.rotation.y = plateau.rot
+    mesh.castShadow = true
+    mesh.receiveShadow = true
+    target.add(mesh)
+  }
+
+  const scrubSpecs = [
+    { x: 78, z: 248, sx: 42, sy: 1.2, sz: 16, rot: 0.2 },
+    { x: 192, z: 520, sx: 56, sy: 1.4, sz: 18, rot: -0.1 },
+    { x: 348, z: 150, sx: 50, sy: 1.1, sz: 15, rot: 0.3 },
+    { x: 540, z: 302, sx: 44, sy: 1.3, sz: 17, rot: -0.26 },
+  ]
+  for (const scrub of scrubSpecs) {
+    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 6), scrubMat)
+    mesh.scale.set(scrub.sx, scrub.sy, scrub.sz)
+    mesh.position.set(scrub.x, 8.5, scrub.z)
+    mesh.rotation.y = scrub.rot
+    mesh.castShadow = true
+    mesh.receiveShadow = true
+    target.add(mesh)
+  }
 }
 
 function createBuildings() {
   if (!activeScene?.buildings?.length) return
   const isForest = currentScene.value === 'forest'
   const isWild = currentScene.value === 'wild'
-  const bColor = isForest ? 0x0a2618 : (isWild ? 0x261a0a : 0x0a1128)
-  const eColor = isForest ? 0x00ff88 : (isWild ? 0xfacc15 : 0x00f2ff)
-  let eColorStr = '#00f2ff';
-  if (isForest) eColorStr = '#00ff88';
-  if (isWild) eColorStr = '#facc15';
+  const isOpen = currentScene.value === 'open'
+  const bColor = isForest ? 0x1d3a2b : (isWild ? 0x4a3822 : (isOpen ? 0x21405e : 0x22324d))
+  const eColor = isForest ? 0x5bffb3 : (isWild ? 0xf6d36f : (isOpen ? 0x8cd2ff : 0x58ebff))
 
   const mat = new THREE.MeshPhysicalMaterial({
     color: bColor, 
-    emissive: isForest || isWild ? 0x000000 : 0x001133,
-    roughness: isForest || isWild ? 0.9 : 0.1,  
-    metalness: isForest || isWild ? 0.05 : 0.8,  
-    clearcoat: isForest || isWild ? 0.0 : 1.0,  
-    clearcoatRoughness: 0.1,
-    transparent: true,
-    opacity: isForest || isWild ? 1.0 : 0.9,
+    emissive: isForest ? 0x07150e : (isWild ? 0x1a130a : 0x0c1a28),
+    roughness: isForest || isWild ? 0.92 : 0.58,
+    metalness: isForest || isWild ? 0.04 : 0.16,
+    clearcoat: isForest || isWild ? 0.0 : 0.18,
+    clearcoatRoughness: 0.3,
+    transparent: false,
+    opacity: 1,
   })
   
   const edgeMat = new THREE.LineBasicMaterial({
     color: eColor,
     transparent: true,
-    opacity: 0.2,
+    opacity: 0.42,
   })
 
   // pre-generate geometries for performance
@@ -365,7 +485,7 @@ function createBuildings() {
       sceneGroup.add(trunk)
       
       const leafColorMat = mat.clone()
-      leafColorMat.color.setHex(0x0a3318)
+      leafColorMat.color.setHex(0x244a34)
       
       for (let i = 0; i < 3; i++) {
         const leafH = renderH * 0.4
@@ -427,7 +547,7 @@ function createBuildings() {
     }
 
     // 统一的高度标签，依然显示绝对真实的高度 h，但是文字挂点上升到模型顶部 renderH + 8 的位置
-    const labelSprite = createTextSprite(`${Math.round(h)}m`, eColorStr)
+    const labelSprite = createTextSprite(`${Math.round(h)}m`, '#f7fbff')
     labelSprite.position.set(b.x + b.width / 2, renderH + 8, b.y + b.depth / 2)
     labelSprite.scale.set(20, 10, 1)
     sceneGroup.add(labelSprite)
@@ -540,14 +660,14 @@ function createGeoJsonBuildings() {
     geo.applyMatrix4(mat4)
 
     const buildingMat = new THREE.MeshPhysicalMaterial({
-      color: 0x0a1128,
-      emissive: 0x001133,
-      roughness: 0.1,
-      metalness: 0.8,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.1,
-      transparent: true,
-      opacity: 0.9,
+      color: 0x22324d,
+      emissive: 0x0c1a28,
+      roughness: 0.58,
+      metalness: 0.16,
+      clearcoat: 0.18,
+      clearcoatRoughness: 0.3,
+      transparent: false,
+      opacity: 1,
     })
 
     const mesh = new THREE.Mesh(geo, buildingMat)
@@ -557,7 +677,7 @@ function createGeoJsonBuildings() {
 
     // 边框线框
     const edgeGeo = new THREE.EdgesGeometry(geo)
-    const edgeMat = new THREE.LineBasicMaterial({ color: 0x00f2ff, transparent: true, opacity: 0.18 })
+    const edgeMat = new THREE.LineBasicMaterial({ color: 0x58ebff, transparent: true, opacity: 0.42 })
     const edges = new THREE.LineSegments(edgeGeo, edgeMat)
     sceneGroup.add(edges)
 
@@ -566,7 +686,7 @@ function createGeoJsonBuildings() {
       const firstPts = pathList[0]
       const cx = firstPts.reduce((s, p) => s + p.x, 0) / firstPts.length * scale + offsetX
       const cz = firstPts.reduce((s, p) => s + p.y, 0) / firstPts.length * scale + offsetZ
-      const label = createTextSprite(`${Math.round(b.zMax)}m`, '#00f2ff')
+      const label = createTextSprite(`${Math.round(b.zMax)}m`, '#f7fbff')
       label.position.set(cx, bHeight + 6, cz)
       label.scale.set(16, 8, 1)
       sceneGroup.add(label)
@@ -577,7 +697,7 @@ function createGeoJsonBuildings() {
   if (mapData.buildings.length > 0) {
     const mapLabel = createTextSprite(
       `GeoJSON · ${mapData.buildings.length} bldgs`,
-      '#a855f7'
+      '#f7fbff'
     )
     mapLabel.position.set(GRID / 2, 5, GRID + 15)
     mapLabel.scale.set(60, 20, 1)
@@ -623,6 +743,12 @@ function createTextSprite(text: string, color: string): THREE.Sprite {
   canvas.height = 128
   const ctx = canvas.getContext('2d')!
   ctx.clearRect(0, 0, 256, 128)
+  ctx.fillStyle = 'rgba(6, 11, 24, 0.84)'
+  ctx.strokeStyle = 'rgba(120, 235, 255, 0.3)'
+  ctx.lineWidth = 2
+  roundRect(ctx, 24, 26, 208, 76, 16)
+  ctx.fill()
+  ctx.stroke()
   ctx.fillStyle = color
   ctx.font = 'bold 36px monospace'
   ctx.textAlign = 'center'
@@ -633,6 +759,27 @@ function createTextSprite(text: string, color: string): THREE.Sprite {
   texture.needsUpdate = true
   const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false })
   return new THREE.Sprite(mat)
+}
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  ctx.beginPath()
+  ctx.moveTo(x + radius, y)
+  ctx.lineTo(x + width - radius, y)
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius)
+  ctx.lineTo(x + width, y + height - radius)
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height)
+  ctx.lineTo(x + radius, y + height)
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius)
+  ctx.lineTo(x, y + radius)
+  ctx.quadraticCurveTo(x, y, x + radius, y)
+  ctx.closePath()
 }
 
 // ═══════════════════════════════════════════════════════
@@ -954,7 +1101,7 @@ function buildUAVBase(uav: UAVNode, cfg: UAVBuildConfig): THREE.Group {
   group.add(ledBack)
 
   // ── ID 标签 ──
-  const labelColor = cfg.isRogue ? '#ff3b3b' : (channelHexStr[uav.channel] || '#00f2ff')
+  const labelColor = cfg.isRogue ? '#ef4444' : (channelHexStr[uav.channel] || '#23d7e6')
   const idLabel = createTextSprite(`${uav.id}`, labelColor)
   idLabel.position.set(0, 3.5, 0)
   idLabel.scale.set(5, 2.5, 1)
@@ -2124,7 +2271,7 @@ onBeforeUnmount(() => {
     <!-- 信道颜色图例 -->
     <div class="channel-legend">
       <div class="legend-item">
-        <span class="legend-dot" style="background: #00f2ff;"></span>
+        <span class="legend-dot" style="background: #23d7e6;"></span>
         <span>CH 1</span>
       </div>
       <div class="legend-item">
@@ -2132,11 +2279,11 @@ onBeforeUnmount(() => {
         <span>CH 2</span>
       </div>
       <div class="legend-item">
-        <span class="legend-dot" style="background: #00ff88;"></span>
+        <span class="legend-dot" style="background: #22c55e;"></span>
         <span>CH 3</span>
       </div>
       <div class="legend-item">
-        <span class="legend-dot" style="background: #ff3b3b;"></span>
+        <span class="legend-dot" style="background: #ef4444;"></span>
         <span>ROGUE</span>
       </div>
     </div>
@@ -2186,8 +2333,8 @@ onBeforeUnmount(() => {
       >
         <div class="tooltip-header">
           <span class="tooltip-id" :style="{
-            background: ['#00f2ff','#a855f7','#00ff88'][hoverInfo.uav.channel] || '#00f2ff',
-            color: '#040714'
+            background: ['#23d7e6','#8e82ff','#22c55e'][hoverInfo.uav.channel] || '#23d7e6',
+            color: '#101827'
           }">UAV-{{ String(hoverInfo.uav.id).padStart(2, '0') }}</span>
           <span class="tooltip-ch">CH{{ hoverInfo.uav.channel + 1 }}</span>
         </div>
@@ -2231,6 +2378,7 @@ onBeforeUnmount(() => {
   position: relative;
   overflow: hidden;
   padding: 0;
+  background: radial-gradient(circle at top, rgba(53, 82, 122, 0.28), rgba(22, 32, 51, 0.96) 55%, rgba(18, 26, 41, 1) 100%);
 }
 
 .sandbox-container :deep(canvas) {
@@ -2247,7 +2395,7 @@ onBeforeUnmount(() => {
   font-family: var(--font-display);
   font-size: 10px;
   letter-spacing: 4px;
-  color: rgba(0, 242, 255, 0.4);
+  color: rgba(35, 215, 230, 0.4);
   pointer-events: none;
   z-index: 10;
 }
@@ -2259,10 +2407,10 @@ onBeforeUnmount(() => {
   transform: translateX(-50%);
   font-family: var(--font-mono);
   font-size: 9px;
-  color: rgba(0, 242, 255, 0.3);
+  color: rgba(182, 197, 212, 0.72);
   pointer-events: none;
   z-index: 10;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(28, 41, 64, 0.48);
   padding: 4px 12px;
   border-radius: 4px;
 }
@@ -2274,19 +2422,19 @@ onBeforeUnmount(() => {
   right: 16px;
   display: flex;
   gap: 14px;
-  background: rgba(4, 7, 20, 0.7);
+  background: rgba(30, 45, 70, 0.8);
   backdrop-filter: blur(12px);
   padding: 8px 14px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(111, 159, 245, 0.14);
   pointer-events: none;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.22);
 }
 .legend-item {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-family: var(--font-mono);
   font-size: 11px;
 }
@@ -2306,14 +2454,14 @@ onBeforeUnmount(() => {
   max-height: 220px;
   display: flex;
   flex-direction: column;
-  background: rgba(4, 7, 20, 0.82);
+  background: rgba(30, 45, 70, 0.88);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(0, 242, 255, 0.12);
+  border: 1px solid rgba(111, 159, 245, 0.16);
   border-radius: 8px;
   z-index: 20;
   box-shadow:
-    0 4px 24px rgba(0, 0, 0, 0.6),
-    0 0 40px rgba(0, 242, 255, 0.03);
+    0 4px 24px rgba(0, 0, 0, 0.36),
+    0 0 40px rgba(35, 215, 230, 0.04);
   pointer-events: auto;
   overflow: hidden;
   transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.6s ease;
@@ -2334,14 +2482,14 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: rgba(4, 7, 20, 0.9);
-  border: 1px solid rgba(0, 242, 255, 0.3);
+  background: rgba(32, 48, 74, 0.92);
+  border: 1px solid rgba(111, 159, 245, 0.24);
   border-radius: 4px;
   color: var(--cyan);
   font-family: var(--font-mono);
   font-size: 12px;
   cursor: pointer;
-  box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+  box-shadow: 0 0 15px rgba(35, 215, 230, 0.16);
   
   opacity: 0;
   pointer-events: none;
@@ -2356,21 +2504,21 @@ onBeforeUnmount(() => {
 }
 
 .terminal-restore-btn:hover {
-  background: rgba(0, 242, 255, 0.15);
-  box-shadow: 0 0 25px rgba(0, 242, 255, 0.4);
+  background: rgba(35, 215, 230, 0.14);
+  box-shadow: 0 0 25px rgba(35, 215, 230, 0.22);
   transform: translateY(-2px);
 }
 
 .terminal-header {
   padding: 5px 12px;
   background: linear-gradient(90deg,
-    rgba(0, 242, 255, 0.08),
-    rgba(168, 85, 247, 0.04),
+    rgba(35, 215, 230, 0.08),
+    rgba(142, 130, 255, 0.05),
     transparent);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid rgba(0, 242, 255, 0.12);
+  border-bottom: 1px solid rgba(111, 159, 245, 0.14);
 }
 
 .terminal-controls {
@@ -2381,7 +2529,7 @@ onBeforeUnmount(() => {
 .minimize-btn {
   background: transparent;
   border: none;
-  color: rgba(0, 242, 255, 0.7);
+  color: rgba(182, 197, 212, 0.78);
   cursor: pointer;
   font-size: 14px;
   line-height: 1;
@@ -2416,7 +2564,7 @@ onBeforeUnmount(() => {
 }
 
 .terminal-dots {
-  color: #00f2ff;
+  color: var(--cyan);
   letter-spacing: 2px;
 }
 
@@ -2437,7 +2585,7 @@ onBeforeUnmount(() => {
   width: 4px;
 }
 .terminal-body::-webkit-scrollbar-thumb {
-  background: rgba(0, 242, 255, 0.3);
+  background: rgba(35, 215, 230, 0.28);
   border-radius: 2px;
 }
 
@@ -2455,7 +2603,7 @@ onBeforeUnmount(() => {
 }
 
 .log-time {
-  color: #64748b;
+  color: var(--text-dim);
   flex-shrink: 0;
 }
 
@@ -2466,20 +2614,20 @@ onBeforeUnmount(() => {
 }
 
 .log-level.system { color: #a855f7; }
-.log-level.env { color: #00ff88; }
-.log-level.swarm { color: #00f2ff; }
-.log-level.ai { color: #facc15; }
-.log-level.aicore { color: #facc15; }
-.log-level.network { color: #ff3b3b; }
-.log-level.qos { color: #ffaa00; }
+.log-level.env { color: var(--green); }
+.log-level.swarm { color: var(--cyan); }
+.log-level.ai { color: var(--yellow); }
+.log-level.aicore { color: var(--yellow); }
+.log-level.network { color: var(--red); }
+.log-level.qos { color: var(--orange); }
 
 .log-msg {
   flex: 1;
 }
 
-.log-msg.warning { color: #ffaa00; }
-.log-msg.danger { color: #ff3b3b; text-shadow: 0 0 6px rgba(255,59,59,0.5); font-weight: bold; }
-.log-msg.success { color: #00ff88; text-shadow: 0 0 6px rgba(0,255,136,0.3); }
+.log-msg.warning { color: var(--orange); }
+.log-msg.danger { color: var(--red); text-shadow: 0 0 6px rgba(239,68,68,0.34); font-weight: bold; }
+.log-msg.success { color: var(--green); text-shadow: 0 0 6px rgba(34,197,94,0.24); }
 
 /* Lock-on Vignette */
 .vignette-overlay {
@@ -2496,13 +2644,13 @@ onBeforeUnmount(() => {
   position: fixed;
   z-index: 10000;
   pointer-events: none;
-  background: rgba(4, 7, 20, 0.92);
+  background: rgba(32, 48, 74, 0.94);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(0, 242, 255, 0.2);
+  border: 1px solid rgba(111, 159, 245, 0.18);
   border-radius: 8px;
   padding: 10px 14px;
   min-width: 160px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 242, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.34), 0 0 20px rgba(35, 215, 230, 0.08);
   animation: tooltipIn 0.15s ease;
 }
 
@@ -2517,7 +2665,7 @@ onBeforeUnmount(() => {
   gap: 8px;
   margin-bottom: 8px;
   padding-bottom: 6px;
-  border-bottom: 1px solid rgba(0, 242, 255, 0.1);
+  border-bottom: 1px solid rgba(111, 159, 245, 0.12);
 }
 
 .tooltip-id {
@@ -2531,34 +2679,34 @@ onBeforeUnmount(() => {
 .tooltip-ch {
   font-family: var(--font-mono);
   font-size: 10px;
-  color: #94a3b8;
+  color: var(--text-secondary);
 }
 
 .tooltip-row {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   padding: 2px 0;
   font-family: var(--font-body);
 }
 
 .tooltip-val {
   font-family: var(--font-mono);
-  color: #e2e8f0;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
 .tooltip-val.conflict {
-  color: #ff3b3b;
-  text-shadow: 0 0 6px rgba(255, 59, 59, 0.5);
+  color: var(--red);
+  text-shadow: 0 0 6px rgba(239, 68, 68, 0.34);
 }
 
 .tooltip-val.nlos {
-  color: #ffaa00;
+  color: var(--orange);
 }
 
 .tooltip-val.low {
-  color: #ff3b3b;
+  color: var(--red);
 }
 </style>

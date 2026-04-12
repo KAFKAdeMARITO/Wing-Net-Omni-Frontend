@@ -151,7 +151,9 @@ function wait(ms: number): Promise<void> {
   position: fixed;
   inset: 0;
   z-index: 99999;
-  background: #020510;
+  background:
+    radial-gradient(circle at top, rgba(35, 215, 230, 0.08), transparent 38%),
+    linear-gradient(180deg, #101827 0%, #162033 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -172,8 +174,8 @@ function wait(ms: number): Promise<void> {
     0deg,
     transparent,
     transparent 2px,
-    rgba(0, 0, 0, 0.06) 2px,
-    rgba(0, 0, 0, 0.06) 4px
+    rgba(0, 0, 0, 0.04) 2px,
+    rgba(0, 0, 0, 0.04) 4px
   );
   pointer-events: none;
   z-index: 1;
@@ -190,7 +192,7 @@ function wait(ms: number): Promise<void> {
   position: absolute;
   width: 2px;
   height: 2px;
-  background: rgba(0, 242, 255, 0.4);
+  background: rgba(35, 215, 230, 0.35);
   border-radius: 50%;
   animation: particle-float linear infinite;
 }
@@ -212,6 +214,7 @@ function wait(ms: number): Promise<void> {
   transform: scale(1.2);
   transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 10;
+  margin-top: -48px;
 }
 
 .logo-stage.active {
@@ -225,8 +228,8 @@ function wait(ms: number): Promise<void> {
 }
 
 .intro-logo-icon {
-  color: #00f2ff;
-  filter: drop-shadow(0 0 20px rgba(0, 242, 255, 0.8));
+  color: #23d7e6;
+  filter: drop-shadow(0 0 18px rgba(35, 215, 230, 0.5));
 }
 
 .intro-logo-svg {
@@ -234,8 +237,8 @@ function wait(ms: number): Promise<void> {
 }
 
 @keyframes logo-pulse {
-  0%, 100% { filter: drop-shadow(0 0 6px rgba(0, 242, 255, 0.6)); }
-  50% { filter: drop-shadow(0 0 24px rgba(0, 242, 255, 1)); }
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(35, 215, 230, 0.35)); }
+  50% { filter: drop-shadow(0 0 20px rgba(35, 215, 230, 0.7)); }
 }
 
 @keyframes logo-rotation {
@@ -247,17 +250,17 @@ function wait(ms: number): Promise<void> {
   font-family: var(--font-body);
   font-size: 36px;
   font-weight: 900;
-  color: #e2e8f0;
+  color: #e4edf7;
   letter-spacing: 12px;
-  text-shadow: 0 0 30px rgba(0, 242, 255, 0.5);
+  text-shadow: 0 0 24px rgba(35, 215, 230, 0.24);
 }
 
 .intro-subtitle {
   font-family: var(--font-display);
   font-size: 14px;
-  color: #00f2ff;
+  color: #23d7e6;
   letter-spacing: 6px;
-  text-shadow: 0 0 15px rgba(0, 242, 255, 0.6);
+  text-shadow: 0 0 10px rgba(35, 215, 230, 0.25);
 }
 
 .intro-logo-text {
@@ -270,20 +273,20 @@ function wait(ms: number): Promise<void> {
 .intro-tagline {
   font-family: var(--font-body);
   font-size: 13px;
-  color: rgba(148, 163, 184, 0);
+  color: rgba(182, 197, 212, 0);
   letter-spacing: 4px;
   margin-top: 4px;
   transition: color 1s ease 0.5s;
 }
 
 .intro-tagline.visible {
-  color: rgba(148, 163, 184, 0.8);
+  color: rgba(182, 197, 212, 0.82);
 }
 
 /* ── Boot Terminal ── */
 .boot-terminal {
   position: absolute;
-  bottom: 15%;
+  bottom: 12%;
   left: 50%;
   transform: translateX(-50%);
   width: 580px;
@@ -297,11 +300,11 @@ function wait(ms: number): Promise<void> {
 }
 
 .terminal-window {
-  background: rgba(4, 7, 20, 0.9);
-  border: 1px solid rgba(0, 242, 255, 0.15);
+  background: rgba(22, 32, 51, 0.94);
+  border: 1px solid rgba(111, 159, 245, 0.18);
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 0 40px rgba(0, 242, 255, 0.1);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.3);
 }
 
 .terminal-header {
@@ -309,8 +312,8 @@ function wait(ms: number): Promise<void> {
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  background: rgba(0, 242, 255, 0.04);
-  border-bottom: 1px solid rgba(0, 242, 255, 0.08);
+  background: rgba(35, 215, 230, 0.05);
+  border-bottom: 1px solid rgba(111, 159, 245, 0.12);
 }
 
 .terminal-dot {
@@ -326,7 +329,7 @@ function wait(ms: number): Promise<void> {
 .terminal-title {
   font-family: var(--font-display);
   font-size: 9px;
-  color: rgba(0, 242, 255, 0.5);
+  color: rgba(182, 197, 212, 0.72);
   letter-spacing: 2px;
   margin-left: 8px;
 }
@@ -340,19 +343,19 @@ function wait(ms: number): Promise<void> {
 .boot-line {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: rgba(148, 163, 184, 0.8);
+  color: rgba(182, 197, 212, 0.86);
   line-height: 1.8;
   animation: line-appear 0.2s ease;
 }
 
 .boot-line.success {
-  color: #00ff88;
-  text-shadow: 0 0 8px rgba(0, 255, 136, 0.4);
+  color: var(--green);
+  text-shadow: 0 0 8px rgba(34, 197, 94, 0.35);
 }
 
 .boot-line.highlight {
-  color: #00f2ff;
-  text-shadow: 0 0 8px rgba(0, 242, 255, 0.4);
+  color: #23d7e6;
+  text-shadow: 0 0 8px rgba(35, 215, 230, 0.28);
 }
 
 @keyframes line-appear {
@@ -361,7 +364,7 @@ function wait(ms: number): Promise<void> {
 }
 
 .cursor-blink {
-  color: #00f2ff;
+  color: #23d7e6;
   animation: blink 0.8s step-end infinite;
 }
 
@@ -372,20 +375,20 @@ function wait(ms: number): Promise<void> {
 
 .progress-track {
   height: 2px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #00f2ff, #00ff88);
+  background: linear-gradient(90deg, #23d7e6, #22c55e);
   transition: width 0.2s ease;
-  box-shadow: 0 0 8px rgba(0, 242, 255, 0.5);
+  box-shadow: 0 0 8px rgba(35, 215, 230, 0.28);
 }
 
 /* ── System Online ── */
 .system-online {
   position: absolute;
-  bottom: 8%;
+  bottom: 5%;
   left: 50%;
   transform: translateX(-50%);
   opacity: 0;
@@ -403,9 +406,9 @@ function wait(ms: number): Promise<void> {
   gap: 10px;
   font-family: var(--font-display);
   font-size: 12px;
-  color: #00ff88;
+  color: #22c55e;
   letter-spacing: 3px;
-  text-shadow: 0 0 15px rgba(0, 255, 136, 0.6);
+  text-shadow: 0 0 12px rgba(34, 197, 94, 0.28);
   animation: badge-pulse 1.2s ease-in-out infinite;
 }
 
@@ -418,8 +421,8 @@ function wait(ms: number): Promise<void> {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #00ff88;
-  box-shadow: 0 0 10px #00ff88;
+  background: #22c55e;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.45);
 }
 
 /* ── Skip ── */
@@ -428,8 +431,8 @@ function wait(ms: number): Promise<void> {
   bottom: 24px;
   right: 32px;
   background: none;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(111, 159, 245, 0.18);
+  color: rgba(182, 197, 212, 0.55);
   font-family: var(--font-display);
   font-size: 10px;
   letter-spacing: 2px;
@@ -441,8 +444,8 @@ function wait(ms: number): Promise<void> {
 }
 
 .skip-btn:hover {
-  color: #00f2ff;
-  border-color: rgba(0, 242, 255, 0.4);
-  background: rgba(0, 242, 255, 0.05);
+  color: #23d7e6;
+  border-color: rgba(35, 215, 230, 0.36);
+  background: rgba(35, 215, 230, 0.06);
 }
 </style>

@@ -292,12 +292,12 @@ function initScene() {
   // Ground plane with scene-aware color
   const isForest = currentScene.value === 'forest'
   const isWild = currentScene.value === 'wild'
-  const gColor = isForest ? 0x051a0f : (isWild ? 0x1a1205 : 0x0a0e27)
-  const gGrid = isForest ? 0x00ff88 : (isWild ? 0xfacc15 : 0x00f2ff)
+  const gColor = isForest ? 0x08150f : (isWild ? 0x15110a : 0x060b18)
+  const gGrid = isForest ? 0x34f5a1 : (isWild ? 0xf6c453 : 0x2ed8e6)
 
   const groundGeo = new THREE.PlaneGeometry(GRID, GRID)
   const groundMat = new THREE.MeshStandardMaterial({
-    color: gColor, roughness: 0.9, metalness: 0.1,
+    color: gColor, roughness: 0.98, metalness: 0.02,
   })
   groundPlane = new THREE.Mesh(groundGeo, groundMat)
   groundPlane.rotation.x = -Math.PI / 2
@@ -308,13 +308,13 @@ function initScene() {
   // Grid
   gridHelper = new THREE.GridHelper(GRID, 12, gGrid, gGrid)
   gridHelper.position.set(GRID / 2, 0, GRID / 2)
-  ;(gridHelper.material as THREE.Material).opacity = 0.08
+  ;(gridHelper.material as THREE.Material).opacity = 0.12
   ;(gridHelper.material as THREE.Material).transparent = true
   threeScene.add(gridHelper)
 
   // Border
   const borderGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(GRID, 0.5, GRID))
-  const borderMat = new THREE.LineBasicMaterial({ color: gGrid, transparent: true, opacity: 0.15 })
+  const borderMat = new THREE.LineBasicMaterial({ color: gGrid, transparent: true, opacity: 0.24 })
   const borderLine = new THREE.LineSegments(borderGeo, borderMat)
   borderLine.position.set(GRID / 2, 0, GRID / 2)
   threeScene.add(borderLine)
@@ -431,8 +431,8 @@ function createGeoJsonBuildings() {
     geo.applyMatrix4(mat4)
 
     const mat = new THREE.MeshPhysicalMaterial({
-      color: 0x0a1128, emissive: 0x001133, roughness: 0.1, metalness: 0.8,
-      clearcoat: 1.0, clearcoatRoughness: 0.1, transparent: true, opacity: 0.9,
+      color: 0x22324d, emissive: 0x0c1a28, roughness: 0.58, metalness: 0.16,
+      clearcoat: 0.18, clearcoatRoughness: 0.3, transparent: false, opacity: 1,
     })
 
     const mesh = new THREE.Mesh(geo, mat)
@@ -441,7 +441,7 @@ function createGeoJsonBuildings() {
     sceneGroup.add(mesh)
 
     const edgeGeo = new THREE.EdgesGeometry(geo)
-    const edgeMat = new THREE.LineBasicMaterial({ color: 0x00f2ff, transparent: true, opacity: 0.2 })
+    const edgeMat = new THREE.LineBasicMaterial({ color: 0x58ebff, transparent: true, opacity: 0.42 })
     const edges = new THREE.LineSegments(edgeGeo, edgeMat)
     sceneGroup.add(edges)
 
@@ -449,7 +449,7 @@ function createGeoJsonBuildings() {
       const firstPts = pathList[0]
       const cx = firstPts.reduce((s, p) => s + p.x, 0) / firstPts.length * scale + offsetX
       const cz = firstPts.reduce((s, p) => s + p.y, 0) / firstPts.length * scale + offsetZ
-      const label = createTextSprite(`${Math.round(b.zMax ?? 20)}m`, '#00f2ff')
+      const label = createTextSprite(`${Math.round(b.zMax ?? 20)}m`, '#f7fbff')
       label.position.set(cx, bHeight + 6, cz)
       label.scale.set(16, 8, 1)
       sceneGroup.add(label)
@@ -464,21 +464,21 @@ function addBuildingMesh(b: BuildingBlock) {
   const visualScale = (isForest || isWild) ? 2.5 : 1.0
   const renderH = h * visualScale
 
-  const bColor = isForest ? 0x0a2618 : (isWild ? 0x261a0a : 0x0a1128)
-  const eColor = isForest ? 0x00ff88 : (isWild ? 0xfacc15 : 0x00f2ff)
+  const bColor = isForest ? 0x1d3a2b : (isWild ? 0x4a3822 : 0x22324d)
+  const eColor = isForest ? 0x5bffb3 : (isWild ? 0xf6d36f : 0x58ebff)
 
   const mat = new THREE.MeshPhysicalMaterial({
     color: bColor,
-    emissive: isForest || isWild ? 0x000000 : 0x001133,
-    roughness: isForest || isWild ? 0.9 : 0.1,
-    metalness: isForest || isWild ? 0.05 : 0.8,
-    clearcoat: isForest || isWild ? 0.0 : 1.0,
-    clearcoatRoughness: 0.1,
-    transparent: true,
-    opacity: isForest || isWild ? 1.0 : 0.9,
+    emissive: isForest ? 0x07150e : (isWild ? 0x1a130a : 0x0c1a28),
+    roughness: isForest || isWild ? 0.92 : 0.58,
+    metalness: isForest || isWild ? 0.04 : 0.16,
+    clearcoat: isForest || isWild ? 0.0 : 0.18,
+    clearcoatRoughness: 0.3,
+    transparent: false,
+    opacity: 1,
   })
   const edgeMat = new THREE.LineBasicMaterial({
-    color: eColor, transparent: true, opacity: 0.25,
+    color: eColor, transparent: true, opacity: 0.42,
   })
 
   if (isForest) {
@@ -492,7 +492,7 @@ function addBuildingMesh(b: BuildingBlock) {
     sceneGroup.add(trunk)
 
     const leafMat = mat.clone()
-    leafMat.color.setHex(0x0a3318)
+    leafMat.color.setHex(0x244a34)
     const leavesGeo = new THREE.ConeGeometry(1, 1, 8)
 
     for (let i = 0; i < 3; i++) {
@@ -512,7 +512,7 @@ function addBuildingMesh(b: BuildingBlock) {
     }
 
     // Height label
-    const labelSprite = createTextSprite(`${Math.round(h)}m`, '#00ff88')
+    const labelSprite = createTextSprite(`${Math.round(h)}m`, '#f7fbff')
     labelSprite.position.set(b.x + b.width / 2, renderH + 8, b.y + b.depth / 2)
     labelSprite.scale.set(20, 10, 1)
     sceneGroup.add(labelSprite)
@@ -523,7 +523,7 @@ function addBuildingMesh(b: BuildingBlock) {
     const segs = 4 + Math.floor(Math.abs(Math.sin(b.x * 0.1)) * 3)
     const hillGeo = new THREE.ConeGeometry(r, renderH, segs)
     const hillMat = mat.clone()
-    hillMat.color.setHex(0x2a1d10)
+    hillMat.color.setHex(0x4a3822)
     hillMat.flatShading = true
     hillMat.roughness = 1.0
     const hill = new THREE.Mesh(hillGeo, hillMat)
@@ -539,7 +539,7 @@ function addBuildingMesh(b: BuildingBlock) {
     sceneGroup.add(edgesM)
 
     // Height label
-    const labelSprite = createTextSprite(`${Math.round(h)}m`, '#facc15')
+    const labelSprite = createTextSprite(`${Math.round(h)}m`, '#f7fbff')
     labelSprite.position.set(b.x + b.width / 2, renderH + 8, b.y + b.depth / 2)
     labelSprite.scale.set(20, 10, 1)
     sceneGroup.add(labelSprite)
@@ -559,7 +559,7 @@ function addBuildingMesh(b: BuildingBlock) {
     sceneGroup.add(edges)
 
     // Height label
-    const labelSprite = createTextSprite(`${Math.round(b.height)}m`, '#00f2ff')
+    const labelSprite = createTextSprite(`${Math.round(b.height)}m`, '#f7fbff')
     labelSprite.position.set(b.x + b.width / 2, renderH + 8, b.y + b.depth / 2)
     labelSprite.scale.set(20, 10, 1)
     sceneGroup.add(labelSprite)
@@ -570,6 +570,12 @@ function createTextSprite(text: string, color: string): THREE.Sprite {
   const canvas = document.createElement('canvas')
   canvas.width = 256; canvas.height = 128
   const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = 'rgba(6, 11, 24, 0.84)'
+  ctx.strokeStyle = 'rgba(120, 235, 255, 0.3)'
+  ctx.lineWidth = 2
+  roundRect(ctx, 24, 26, 208, 76, 16)
+  ctx.fill()
+  ctx.stroke()
   ctx.fillStyle = color
   ctx.font = 'bold 48px monospace'
   ctx.textAlign = 'center'
@@ -578,6 +584,27 @@ function createTextSprite(text: string, color: string): THREE.Sprite {
   const tex = new THREE.CanvasTexture(canvas)
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true })
   return new THREE.Sprite(mat)
+}
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  ctx.beginPath()
+  ctx.moveTo(x + radius, y)
+  ctx.lineTo(x + width - radius, y)
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius)
+  ctx.lineTo(x + width, y + height - radius)
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height)
+  ctx.lineTo(x + radius, y + height)
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius)
+  ctx.lineTo(x, y + radius)
+  ctx.quadraticCurveTo(x, y, x + radius, y)
+  ctx.closePath()
 }
 
 // ── Ghost mesh management ──
@@ -1057,7 +1084,7 @@ onBeforeUnmount(() => {
 .editor-overlay {
   position: fixed; inset: 0; z-index: 2000;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(6px);
+  background: rgba(11, 18, 32, 0.68); backdrop-filter: blur(6px);
 }
 .editor-panel {
   width: 920px; max-width: 95vw; max-height: 90vh;
@@ -1117,8 +1144,8 @@ onBeforeUnmount(() => {
 .param-row {
   display: flex; align-items: center; gap: 8px;
   padding: 5px 8px;
-  background: rgba(0, 242, 255, 0.03); border-radius: var(--radius-sm);
-  border: 1px solid rgba(0, 242, 255, 0.06);
+  background: rgba(35, 215, 230, 0.04); border-radius: var(--radius-sm);
+  border: 1px solid rgba(111, 159, 245, 0.12);
 }
 .param-row label {
   font-size: 11px; color: var(--text-dim); white-space: nowrap;
@@ -1134,7 +1161,7 @@ onBeforeUnmount(() => {
 
 .place-btn {
   padding: 8px 12px;
-  background: linear-gradient(135deg, rgba(0, 242, 255, 0.1), rgba(168, 85, 247, 0.1));
+  background: linear-gradient(135deg, rgba(35, 215, 230, 0.1), rgba(142, 130, 255, 0.1));
   border: 1px solid var(--glass-border); color: var(--text-secondary);
   border-radius: var(--radius-sm); cursor: pointer;
   font-family: var(--font-body); font-size: 13px;
@@ -1158,7 +1185,7 @@ onBeforeUnmount(() => {
 }
 .drawing-badge {
   display: inline-block; padding: 2px 8px; border-radius: 10px;
-  background: rgba(0, 242, 255, 0.15); color: var(--cyan);
+  background: rgba(35, 215, 230, 0.15); color: var(--cyan);
   font-size: 10px; animation: pulse 1s infinite;
 }
 
@@ -1166,7 +1193,7 @@ onBeforeUnmount(() => {
 .obj-list {
   flex: 1; min-height: 60px; max-height: 180px;
   overflow-y: auto;
-  border: 1px solid rgba(0, 242, 255, 0.06);
+  border: 1px solid rgba(111, 159, 245, 0.12);
   border-radius: var(--radius-sm);
   padding: 6px;
 }
@@ -1185,23 +1212,23 @@ onBeforeUnmount(() => {
   font-family: var(--font-mono);
 }
 .obj-item.building {
-  color: var(--cyan); background: rgba(0, 242, 255, 0.04);
+  color: var(--cyan); background: rgba(35, 215, 230, 0.05);
 }
 .obj-item.zone {
-  color: #ff6b6b; background: rgba(255, 59, 59, 0.04);
+  color: var(--red); background: rgba(239, 68, 68, 0.06);
 }
 .obj-del {
   background: none; border: none; color: var(--text-dim);
   cursor: pointer; font-size: 12px; padding: 2px 4px;
   transition: color 0.15s;
 }
-.obj-del:hover { color: #ff3b3b; }
+.obj-del:hover { color: var(--red); }
 
 /* Action buttons */
 .action-btns { display: flex; gap: 6px; }
 .apply-btn {
   flex: 1; padding: 8px 12px;
-  background: linear-gradient(135deg, rgba(0, 242, 255, 0.2), rgba(168, 85, 247, 0.2));
+  background: linear-gradient(135deg, rgba(35, 215, 230, 0.16), rgba(142, 130, 255, 0.16));
   border: 1px solid var(--cyan); color: var(--cyan);
   border-radius: var(--radius-sm); cursor: pointer;
   font-family: var(--font-body); font-size: 13px;
@@ -1220,7 +1247,7 @@ onBeforeUnmount(() => {
 
 .scene-mgmt {
   display: flex; gap: 4px; flex-wrap: wrap;
-  padding-top: 6px; border-top: 1px solid rgba(0, 242, 255, 0.06);
+  padding-top: 6px; border-top: 1px solid rgba(111, 159, 245, 0.12);
 }
 .mgmt-btn {
   flex: 1; padding: 5px 8px; min-width: 80px;
@@ -1254,7 +1281,7 @@ onBeforeUnmount(() => {
 .osm-viewport-badge {
   position: absolute; top: 8px; left: 8px;
   padding: 4px 10px;
-  background: rgba(0, 242, 255, 0.15);
+  background: rgba(35, 215, 230, 0.15);
   border: 1px solid var(--cyan);
   border-radius: var(--radius-sm);
   color: var(--cyan); font-size: 11px;
@@ -1266,8 +1293,8 @@ onBeforeUnmount(() => {
   display: flex; align-items: center; justify-content: space-between;
   flex-wrap: wrap; gap: 4px;
   padding: 6px 8px;
-  background: rgba(0, 242, 255, 0.06);
-  border: 1px solid rgba(0, 242, 255, 0.15);
+  background: rgba(35, 215, 230, 0.06);
+  border: 1px solid rgba(111, 159, 245, 0.16);
   border-radius: var(--radius-sm);
   font-size: 11px; color: var(--text-secondary);
 }
@@ -1278,7 +1305,7 @@ onBeforeUnmount(() => {
   color: var(--text-dim);
 }
 .osm-switch-manual {
-  background: none; border: 1px solid rgba(0,242,255,0.3);
+  background: none; border: 1px solid rgba(35,215,230,0.26);
   color: var(--cyan); font-size: 10px; padding: 2px 6px;
   border-radius: 4px; cursor: pointer;
   transition: all var(--transition-fast);
@@ -1286,8 +1313,8 @@ onBeforeUnmount(() => {
 .osm-switch-manual:hover { background: var(--cyan-dim); }
 
 .osm-info-card {
-  background: rgba(0,242,255,0.04);
-  border: 1px solid rgba(0,242,255,0.1);
+  background: rgba(35,215,230,0.04);
+  border: 1px solid rgba(35,215,230,0.1);
   border-radius: var(--radius-sm);
   padding: 8px;
   display: flex; flex-direction: column; gap: 4px;
@@ -1304,16 +1331,16 @@ onBeforeUnmount(() => {
   font-size: 10px; color: var(--text-dim);
   text-transform: uppercase; letter-spacing: 1px;
   padding: 4px 0;
-  border-bottom: 1px solid rgba(0,242,255,0.08);
+  border-bottom: 1px solid rgba(35,215,230,0.08);
   font-family: var(--font-display);
 }
 
 .osm-upload-area {
-  border: 1px dashed rgba(0,242,255,0.2);
+  border: 1px dashed rgba(35,215,230,0.2);
   border-radius: var(--radius-sm);
   padding: 10px;
   text-align: center;
-  background: rgba(0,242,255,0.02);
+  background: rgba(35,215,230,0.02);
   transition: border-color 0.2s;
 }
 .osm-upload-area:hover { border-color: var(--cyan); }
@@ -1326,7 +1353,7 @@ onBeforeUnmount(() => {
 
 .osm-text-input {
   flex: 1; background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(0,242,255,0.15);
+  border: 1px solid rgba(35,215,230,0.15);
   border-radius: 4px; color: var(--text-primary);
   font-family: var(--font-mono); font-size: 11px;
   padding: 4px 8px; outline: none;
@@ -1337,7 +1364,7 @@ onBeforeUnmount(() => {
 
 .osm-action-btn {
   width: 100%; padding: 8px 12px;
-  background: linear-gradient(135deg, rgba(0,242,255,0.15), rgba(168,85,247,0.1));
+  background: linear-gradient(135deg, rgba(35,215,230,0.15), rgba(142,130,255,0.1));
   border: 1px solid var(--cyan); color: var(--cyan);
   border-radius: var(--radius-sm); cursor: pointer;
   font-family: var(--font-body); font-size: 13px;
@@ -1358,19 +1385,19 @@ onBeforeUnmount(() => {
   flex: 1;
 }
 .osm-action-btn.local-parse-btn {
-  background: linear-gradient(135deg, rgba(0,255,136,0.12), rgba(0,242,255,0.08));
-  border-color: #00ff88;
-  color: #00ff88;
+  background: linear-gradient(135deg, rgba(34,197,94,0.12), rgba(35,215,230,0.08));
+  border-color: var(--green);
+  color: var(--green);
 }
 .osm-action-btn.local-parse-btn:hover:not(:disabled) {
-  background: rgba(0,255,136,0.15);
-  box-shadow: 0 0 12px rgba(0,255,136,0.3);
+  background: rgba(34,197,94,0.15);
+  box-shadow: 0 0 12px rgba(34,197,94,0.3);
 }
 
 .osm-feedback {
   padding: 6px 8px; border-radius: var(--radius-sm);
   font-size: 11px; font-family: var(--font-mono);
 }
-.osm-feedback.error { color: var(--red); background: rgba(255,59,59,0.06); border: 1px solid rgba(255,59,59,0.2); }
-.osm-feedback.success { color: #00ff88; background: rgba(0,255,136,0.06); border: 1px solid rgba(0,255,136,0.2); }
+.osm-feedback.error { color: var(--red); background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2); }
+.osm-feedback.success { color: var(--green); background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2); }
 </style>
